@@ -1,2 +1,2 @@
 # picodulce
-launcher for block game
+launcher for block game and GUI for the PicoMC proyect
