@@ -24,6 +24,10 @@ class PicomcVersionSelector(QWidget):
         dark_palette = self.create_dark_palette()
         QApplication.instance().setPalette(dark_palette)
 
+        # Set window border color to dark mode on Windows
+        if sys.platform == 'win32':
+            self.setStyleSheet("QMainWindow { border: 2px solid rgb(53, 53, 53); }")
+
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
@@ -296,7 +300,7 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.BrightText, Qt.red)
         palette.setColor(QPalette.Link, QColor(42, 130, 218))
         palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.black)
+        palette.setColor(QPalette.HighlightedText, Qt.white)  # Change highlighted text color to white
         return palette
 
 if __name__ == '__main__':
