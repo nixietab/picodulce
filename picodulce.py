@@ -1,9 +1,12 @@
 import sys
 import subprocess
+import threading
+import logging
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -12,12 +15,12 @@ class PicomcVersionSelector(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle('PicoDulce Launcher')  
+        self.setWindowTitle('PicoDulce Launcher')  # Change window title
         self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
         self.setGeometry(100, 100, 400, 250)
 
         # Create title label
-        title_label = QLabel('PicoDulce Launcher')  
+        title_label = QLabel('PicoDulce Launcher')  # Change label text
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
 
         # Create installed versions section
@@ -75,11 +78,11 @@ class PicomcVersionSelector(QWidget):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
         except FileNotFoundError:
-            print("Error: 'picomc' command not found. Please make sure it's installed and in your PATH.")
-            sys.exit(1)
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
         except subprocess.CalledProcessError as e:
-            print("Error:", e.stderr)
-            sys.exit(1)
+            logging.error("Error: %s", e.stderr)
+            return
 
         # Parse the output and replace '[local]' with a space
         versions = output.splitlines()
@@ -90,11 +93,22 @@ class PicomcVersionSelector(QWidget):
         self.installed_version_combo.addItems(versions)
 
     def play_instance(self):
+        if self.installed_version_combo.count() == 0:
+            QMessageBox.warning(self, "No Version Available", "Please download a version first.")
+            return
+
         selected_instance = self.installed_version_combo.currentText()
+
+        # Create a separate thread to run the game process
+        play_thread = threading.Thread(target=self.run_game, args=(selected_instance,))
+        play_thread.start()
+
+    def run_game(self, selected_instance):
         try:
             subprocess.run(['picomc', 'play', selected_instance], check=True)
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e.stderr.decode()}"
+            logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
 
     def open_version_menu(self):
@@ -133,11 +147,11 @@ class PicomcVersionSelector(QWidget):
                     if process.returncode != 0:
                         raise subprocess.CalledProcessError(process.returncode, process.args, error)
                 except FileNotFoundError:
-                    print("Error: 'picomc' command not found. Please make sure it's installed and in your PATH.")
-                    sys.exit(1)
+                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                    return
                 except subprocess.CalledProcessError as e:
-                    print("Error:", e.stderr)
-                    sys.exit(1)
+                    logging.error("Error: %s", e.stderr)
+                    return
 
                 # Parse the output and replace '[local]' with a space
                 versions = output.splitlines()
@@ -176,6 +190,7 @@ class PicomcVersionSelector(QWidget):
         except subprocess.CalledProcessError as e:
             error_message = f"Error preparing {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
     def manage_accounts(self):
         dialog = QDialog(self)
@@ -221,11 +236,11 @@ class PicomcVersionSelector(QWidget):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
         except FileNotFoundError:
-            print("Error: 'picomc' command not found. Please make sure it's installed and in your PATH.")
-            sys.exit(1)
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
         except subprocess.CalledProcessError as e:
-            print("Error:", e.stderr)
-            sys.exit(1)
+            logging.error("Error: %s", e.stderr)
+            return
 
         # Parse the output and remove ' *' from account names
         accounts = output.splitlines()
@@ -246,6 +261,7 @@ class PicomcVersionSelector(QWidget):
         except subprocess.CalledProcessError as e:
             error_message = f"Error creating account: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
     def set_default_account(self, dialog, account):
         dialog.close()
@@ -255,6 +271,7 @@ class PicomcVersionSelector(QWidget):
         except subprocess.CalledProcessError as e:
             error_message = f"Error setting default account: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
     def show_about_dialog(self):
         about_message = "PicoDulce Launcher\n\nA simple gui for the picomc proyect."
