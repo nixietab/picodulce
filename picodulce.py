@@ -3,7 +3,7 @@ import subprocess
 import threading
 import logging
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,8 +19,10 @@ class PicomcVersionSelector(QWidget):
         self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
         self.setGeometry(100, 100, 400, 250)
 
-        # Set application style to Oxygen
-        QApplication.setStyle("oxygen")
+        # Set application style and palette
+        app_style = QApplication.setStyle("Fusion")
+        dark_palette = self.create_dark_palette()
+        QApplication.instance().setPalette(dark_palette)
 
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
@@ -279,6 +281,23 @@ class PicomcVersionSelector(QWidget):
     def show_about_dialog(self):
         about_message = "PicoDulce Launcher\n\nA simple gui for the picomc proyect."
         QMessageBox.about(self, "About", about_message)
+
+    def create_dark_palette(self):
+        palette = QApplication.palette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.HighlightedText, Qt.black)
+        return palette
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
