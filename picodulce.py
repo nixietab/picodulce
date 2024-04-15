@@ -19,6 +19,16 @@ class PicomcVersionSelector(QWidget):
         self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
         self.setGeometry(100, 100, 400, 250)
 
+        # Set application style to "Fusion" for consistent appearance
+        QApplication.setStyle("Fusion")
+
+        # Set Fusion dark style if running on Windows
+        if sys.platform.startswith('win'):
+            palette = QApplication.palette()
+            palette.setColor(QApplication.Window, Qt.white)
+            palette.setColor(QApplication.BackgroundRole, Qt.white)
+            QApplication.setPalette(palette)
+
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
