@@ -134,7 +134,7 @@ class PicomcVersionSelector(QWidget):
         snapshot_checkbox = QCheckBox('Snapshots')
         alpha_checkbox = QCheckBox('Alpha')
         beta_checkbox = QCheckBox('Beta')
-
+        release_checkbox.setChecked(True)
         # Create dropdown menu for versions
         version_combo = QComboBox()
 
@@ -166,7 +166,8 @@ class PicomcVersionSelector(QWidget):
                 versions = output.splitlines()
                 versions = [version.replace('[local]', ' ').strip() for version in versions]
                 version_combo.addItems(versions)
-
+                
+        update_versions()
         release_checkbox.clicked.connect(update_versions)
         snapshot_checkbox.clicked.connect(update_versions)
         alpha_checkbox.clicked.connect(update_versions)
