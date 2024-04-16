@@ -46,7 +46,7 @@ class PicomcVersionSelector(QWidget):
         self.play_button = QPushButton('Play')
         self.play_button.setFocusPolicy(Qt.NoFocus)  # Set focus policy to prevent highlighting
         self.play_button.clicked.connect(self.play_instance)
-        self.play_button.setStyleSheet("background-color: #1E90FF; color: white;")
+        self.play_button.setStyleSheet("background-color: #4bb679; color: white;")
         buttons_layout.addWidget(self.play_button)
 
         # Create button to open version download menu
