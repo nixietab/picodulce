@@ -16,7 +16,6 @@ class PicomcVersionSelector(QWidget):
         self.init_ui()
 
     def init_ui(self):
-
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
         self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
         self.setGeometry(100, 100, 400, 250)
@@ -60,6 +59,11 @@ class PicomcVersionSelector(QWidget):
         self.manage_accounts_button = QPushButton('Manage Accounts')
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
+
+        # Create button to install mod loader
+        self.install_mod_loader_button = QPushButton('Install Mod Loader')
+        self.install_mod_loader_button.clicked.connect(self.open_mod_loader_menu)
+        buttons_layout.addWidget(self.install_mod_loader_button)
 
         # Create About button
         self.about_button = QPushButton('About')
@@ -295,6 +299,30 @@ class PicomcVersionSelector(QWidget):
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
 
+    def remove_account(self, dialog, username):
+        if username.strip() == '':
+            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            return
+
+        # Remove any leading " * " from the username
+        username = username.strip().lstrip(" * ")
+
+        # Ask for confirmation twice before removing the account
+        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
+        confirm_dialog = QMessageBox.question(self, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm_dialog == QMessageBox.Yes:
+            confirm_message_again = "This action is irreversible. Are you absolutely sure?"
+            confirm_dialog_again = QMessageBox.question(self, "Confirm Removal", confirm_message_again, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if confirm_dialog_again == QMessageBox.Yes:
+                try:
+                    subprocess.run(['py', '-m','picomc', 'account', 'remove', username], check=True)
+                    QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
+                    self.populate_accounts(dialog.findChild(QComboBox))
+                except subprocess.CalledProcessError as e:
+                    error_message = f"Error removing account: {e.stderr.decode()}"
+                    logging.error(error_message)
+                    QMessageBox.critical(self, "Error", error_message)
+
     def show_about_dialog(self):
         about_message = "PicoDulce Launcher\n\nA simple gui for the picomc proyect."
         QMessageBox.about(self, "About", about_message)
@@ -316,6 +344,96 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.HighlightedText, Qt.white)  # Change highlighted text color to white
         return palette
     
+    def open_mod_loader_menu(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Mod Loader Installer')
+        dialog.setFixedSize(300, 200)
+
+        # Create title label
+        title_label = QLabel('Mod Loader Installer')
+        title_label.setFont(QFont("Arial", 14))
+
+        # Create checkboxes for mod loaders
+        forge_checkbox = QCheckBox('Forge')
+        fabric_checkbox = QCheckBox('Fabric')
+
+        # Create dropdown menu for versions
+        version_combo = QComboBox()
+
+        def update_versions():
+            version_combo.clear()
+            if forge_checkbox.isChecked():
+                self.populate_available_releases(version_combo, True, False)
+            elif fabric_checkbox.isChecked():
+                self.populate_available_releases(version_combo, False, True)
+
+        forge_checkbox.clicked.connect(update_versions)
+        fabric_checkbox.clicked.connect(update_versions)
+
+        # Set layout
+        layout = QVBoxLayout()
+        layout.addWidget(title_label)
+        layout.addWidget(forge_checkbox)
+        layout.addWidget(fabric_checkbox)
+        layout.addWidget(version_combo)
+
+        # Create install button
+        install_button = QPushButton('Install')
+        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
+        layout.addWidget(install_button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+        try:
+            process = subprocess.Popen(['py', '-m','picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
+        except subprocess.CalledProcessError as e:
+            logging.error("Error: %s", e.stderr)
+            return
+
+        if install_fabric:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
+        elif install_forge:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
+        else:
+            releases = output.splitlines()
+
+        version_combo.clear()
+        version_combo.addItems(releases)
+
+    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
+        if not install_forge and not install_fabric:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        mod_loader = None
+        if install_forge:
+            mod_loader = 'forge'
+        elif install_fabric:
+            mod_loader = 'fabric'
+
+        if not mod_loader:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        try:
+            if mod_loader == 'forge':
+                subprocess.run(['py', '-m','picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
+            elif mod_loader == 'fabric':
+                subprocess.run(['py', '-m','picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
+            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+            self.populate_installed_versions()  # Refresh the installed versions list after installation
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
+            QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
+
 def install_dependencies(pip, picomc):
     if(pip == False):
         try:
