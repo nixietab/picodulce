@@ -59,6 +59,11 @@ class PicomcVersionSelector(QWidget):
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
 
+        # Create button to install mod loader
+        self.install_mod_loader_button = QPushButton('Install Mod Loader')
+        self.install_mod_loader_button.clicked.connect(self.open_mod_loader_menu)
+        buttons_layout.addWidget(self.install_mod_loader_button)
+
         # Create About button
         self.about_button = QPushButton('About')
         self.about_button.clicked.connect(self.show_about_dialog)
@@ -134,7 +139,7 @@ class PicomcVersionSelector(QWidget):
         snapshot_checkbox = QCheckBox('Snapshots')
         alpha_checkbox = QCheckBox('Alpha')
         beta_checkbox = QCheckBox('Beta')
-        release_checkbox.setChecked(True)
+
         # Create dropdown menu for versions
         version_combo = QComboBox()
 
@@ -166,8 +171,7 @@ class PicomcVersionSelector(QWidget):
                 versions = output.splitlines()
                 versions = [version.replace('[local]', ' ').strip() for version in versions]
                 version_combo.addItems(versions)
-                
-        update_versions()
+
         release_checkbox.clicked.connect(update_versions)
         snapshot_checkbox.clicked.connect(update_versions)
         alpha_checkbox.clicked.connect(update_versions)
@@ -199,13 +203,13 @@ class PicomcVersionSelector(QWidget):
             self.populate_installed_versions()  # Refresh the installed versions list after downloading
         except subprocess.CalledProcessError as e:
             error_message = f"Error preparing {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
 
     def manage_accounts(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Manage Accounts')
-        dialog.setFixedSize(300, 150)
+        dialog.setFixedSize(300, 200)
 
         # Create title label
         title_label = QLabel('Manage Accounts')
@@ -234,6 +238,14 @@ class PicomcVersionSelector(QWidget):
         create_account_layout.addWidget(create_account_button)
 
         layout.addLayout(create_account_layout)
+
+        # Create a separate section for removing an account
+        remove_account_layout = QHBoxLayout()
+        remove_account_button = QPushButton('Remove Account')
+        remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
+        remove_account_layout.addWidget(remove_account_button)
+
+        layout.addLayout(remove_account_layout)
 
         dialog.setLayout(layout)
         dialog.exec_()
@@ -270,8 +282,8 @@ class PicomcVersionSelector(QWidget):
             self.populate_accounts(dialog.findChild(QComboBox))
         except subprocess.CalledProcessError as e:
             error_message = f"Error creating account: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
 
     def set_default_account(self, dialog, account):
         dialog.close()
@@ -280,15 +292,44 @@ class PicomcVersionSelector(QWidget):
             QMessageBox.information(self, "Success", f"Default account set to {account}!")
         except subprocess.CalledProcessError as e:
             error_message = f"Error setting default account: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
+
+    def remove_account(self, dialog, username):
+        if username.strip() == '':
+            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            return
+
+        # Remove any leading " * " from the username
+        username = username.strip().lstrip(" * ")
+
+        # Ask for confirmation twice before removing the account
+        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
+        confirm_dialog = QMessageBox.question(self, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm_dialog == QMessageBox.Yes:
+            confirm_message_again = "This action is irreversible. Are you absolutely sure?"
+            confirm_dialog_again = QMessageBox.question(self, "Confirm Removal", confirm_message_again, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if confirm_dialog_again == QMessageBox.Yes:
+                try:
+                    subprocess.run(['picomc', 'account', 'remove', username], check=True)
+                    QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
+                    self.populate_accounts(dialog.findChild(QComboBox))
+                except subprocess.CalledProcessError as e:
+                    error_message = f"Error removing account: {e.stderr.decode()}"
+                    logging.error(error_message)
+                    QMessageBox.critical(self, "Error", error_message)
 
     def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple gui for the picomc proyect."
+        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
+        QMessageBox.about(self, "About", about_message)
+
+
+    def show_about_dialog(self):
+        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
         QMessageBox.about(self, "About", about_message)
 
     def create_dark_palette(self):
-        palette = QApplication.palette()
+        palette = QPalette()
         palette.setColor(QPalette.Window, QColor(53, 53, 53))
         palette.setColor(QPalette.WindowText, Qt.white)
         palette.setColor(QPalette.Base, QColor(25, 25, 25))
@@ -301,8 +342,99 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.BrightText, Qt.red)
         palette.setColor(QPalette.Link, QColor(42, 130, 218))
         palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.white)  # Change highlighted text color to white
+        palette.setColor(QPalette.HighlightedText, Qt.white)
         return palette
+
+    def open_mod_loader_menu(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Mod Loader Installer')
+        dialog.setFixedSize(300, 200)
+
+        # Create title label
+        title_label = QLabel('Mod Loader Installer')
+        title_label.setFont(QFont("Arial", 14))
+
+        # Create checkboxes for mod loaders
+        forge_checkbox = QCheckBox('Forge')
+        fabric_checkbox = QCheckBox('Fabric')
+
+        # Create dropdown menu for versions
+        version_combo = QComboBox()
+
+        def update_versions():
+            version_combo.clear()
+            if forge_checkbox.isChecked():
+                self.populate_available_releases(version_combo, True, False)
+            elif fabric_checkbox.isChecked():
+                self.populate_available_releases(version_combo, False, True)
+
+        forge_checkbox.clicked.connect(update_versions)
+        fabric_checkbox.clicked.connect(update_versions)
+
+        # Set layout
+        layout = QVBoxLayout()
+        layout.addWidget(title_label)
+        layout.addWidget(forge_checkbox)
+        layout.addWidget(fabric_checkbox)
+        layout.addWidget(version_combo)
+
+        # Create install button
+        install_button = QPushButton('Install')
+        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
+        layout.addWidget(install_button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+        try:
+            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
+        except subprocess.CalledProcessError as e:
+            logging.error("Error: %s", e.stderr)
+            return
+
+        if install_fabric:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
+        elif install_forge:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
+        else:
+            releases = output.splitlines()
+
+        version_combo.clear()
+        version_combo.addItems(releases)
+
+    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
+        if not install_forge and not install_fabric:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        mod_loader = None
+        if install_forge:
+            mod_loader = 'forge'
+        elif install_fabric:
+            mod_loader = 'fabric'
+
+        if not mod_loader:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        try:
+            if mod_loader == 'forge':
+                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
+            elif mod_loader == 'fabric':
+                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
+            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+            self.populate_installed_versions()  # Refresh the installed versions list after installation
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
+            QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
