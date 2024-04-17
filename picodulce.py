@@ -1,5 +1,6 @@
 import sys
 import subprocess
+import ctypes
 import threading
 import logging
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
@@ -15,6 +16,7 @@ class PicomcVersionSelector(QWidget):
         self.init_ui()
 
     def init_ui(self):
+
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
         self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
         self.setGeometry(100, 100, 400, 250)
@@ -59,11 +61,6 @@ class PicomcVersionSelector(QWidget):
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
 
-        # Create button to install mod loader
-        self.install_mod_loader_button = QPushButton('Install Mod Loader')
-        self.install_mod_loader_button.clicked.connect(self.open_mod_loader_menu)
-        buttons_layout.addWidget(self.install_mod_loader_button)
-
         # Create About button
         self.about_button = QPushButton('About')
         self.about_button.clicked.connect(self.show_about_dialog)
@@ -83,11 +80,11 @@ class PicomcVersionSelector(QWidget):
         main_layout.setSpacing(20)
 
         self.setLayout(main_layout)
-
+        
     def populate_installed_versions(self):
         # Run the command and get the output
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            process = subprocess.Popen(['py', '-m','picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output, error = process.communicate()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
@@ -110,7 +107,12 @@ class PicomcVersionSelector(QWidget):
         if self.installed_version_combo.count() == 0:
             QMessageBox.warning(self, "No Version Available", "Please download a version first.")
             return
-
+        
+        #Checks if you have an account
+        accounts = PicomcVersionSelector.get_accounts_list(self)
+        if(accounts == None):
+            return QMessageBox.critical(self, "No accounts created", "You need to create an account to play")
+        
         selected_instance = self.installed_version_combo.currentText()
 
         # Create a separate thread to run the game process
@@ -119,7 +121,7 @@ class PicomcVersionSelector(QWidget):
 
     def run_game(self, selected_instance):
         try:
-            subprocess.run(['picomc', 'play', selected_instance], check=True)
+            subprocess.run(['py', '-m','picomc', 'play', selected_instance], check=True)
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e.stderr.decode()}"
             logging.error(error_message)
@@ -139,7 +141,7 @@ class PicomcVersionSelector(QWidget):
         snapshot_checkbox = QCheckBox('Snapshots')
         alpha_checkbox = QCheckBox('Alpha')
         beta_checkbox = QCheckBox('Beta')
-
+        release_checkbox.setChecked(True)
         # Create dropdown menu for versions
         version_combo = QComboBox()
 
@@ -156,7 +158,7 @@ class PicomcVersionSelector(QWidget):
                 options.append('--beta')
             if options:
                 try:
-                    process = subprocess.Popen(['picomc', 'version', 'list'] + options, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    process = subprocess.Popen(['py', '-m','picomc', 'version', 'list'] + options, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     output, error = process.communicate()
                     if process.returncode != 0:
                         raise subprocess.CalledProcessError(process.returncode, process.args, error)
@@ -171,7 +173,8 @@ class PicomcVersionSelector(QWidget):
                 versions = output.splitlines()
                 versions = [version.replace('[local]', ' ').strip() for version in versions]
                 version_combo.addItems(versions)
-
+                
+        update_versions()
         release_checkbox.clicked.connect(update_versions)
         snapshot_checkbox.clicked.connect(update_versions)
         alpha_checkbox.clicked.connect(update_versions)
@@ -198,18 +201,18 @@ class PicomcVersionSelector(QWidget):
     def prepare_version(self, dialog, version):
         dialog.close()
         try:
-            subprocess.run(['picomc', 'version', 'prepare', version], check=True)
+            subprocess.run(['py', '-m','picomc', 'version', 'prepare', version], check=True)
             QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
             self.populate_installed_versions()  # Refresh the installed versions list after downloading
         except subprocess.CalledProcessError as e:
             error_message = f"Error preparing {version}: {e.stderr.decode()}"
-            logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
     def manage_accounts(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Manage Accounts')
-        dialog.setFixedSize(300, 200)
+        dialog.setFixedSize(300, 150)
 
         # Create title label
         title_label = QLabel('Manage Accounts')
@@ -239,21 +242,33 @@ class PicomcVersionSelector(QWidget):
 
         layout.addLayout(create_account_layout)
 
-        # Create a separate section for removing an account
-        remove_account_layout = QHBoxLayout()
-        remove_account_button = QPushButton('Remove Account')
-        remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
-        remove_account_layout.addWidget(remove_account_button)
-
-        layout.addLayout(remove_account_layout)
-
         dialog.setLayout(layout)
         dialog.exec_()
 
     def populate_accounts(self, account_combo):
         # Run the command and get the output
+        accounts = PicomcVersionSelector.get_accounts_list(self)
+
+        # Populate accounts combo box
+        account_combo.clear()
+        account_combo.addItems(accounts)
+
+    def create_account(self, dialog, username):
+        if username.strip() == '':
+            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            return
         try:
-            process = subprocess.Popen(['picomc', 'account', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            subprocess.run(['py', '-m','picomc', 'account', 'create', username], check=True)
+            QMessageBox.information(self, "Success", f"Account {username} created successfully!")
+            self.populate_accounts(dialog.findChild(QComboBox))
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error creating account: {e.stderr.decode()}"
+            QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
+
+    def get_accounts_list(self):
+        try:
+            process = subprocess.Popen(['py', '-m','picomc', 'account', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output, error = process.communicate()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
@@ -267,69 +282,25 @@ class PicomcVersionSelector(QWidget):
         # Parse the output and remove ' *' from account names
         accounts = output.splitlines()
         accounts = [account.replace(' *', '').strip() for account in accounts]
-
-        # Populate accounts combo box
-        account_combo.clear()
-        account_combo.addItems(accounts)
-
-    def create_account(self, dialog, username):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
-            return
-        try:
-            subprocess.run(['picomc', 'account', 'create', username], check=True)
-            QMessageBox.information(self, "Success", f"Account {username} created successfully!")
-            self.populate_accounts(dialog.findChild(QComboBox))
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
-
+        return accounts
+    
+    
     def set_default_account(self, dialog, account):
         dialog.close()
         try:
-            subprocess.run(['picomc', 'account', 'setdefault', account], check=True)
+            subprocess.run(['py', '-m','picomc', 'account', 'setdefault', account], check=True)
             QMessageBox.information(self, "Success", f"Default account set to {account}!")
         except subprocess.CalledProcessError as e:
             error_message = f"Error setting default account: {e.stderr.decode()}"
-            logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
-
-    def remove_account(self, dialog, username):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
-            return
-
-        # Remove any leading " * " from the username
-        username = username.strip().lstrip(" * ")
-
-        # Ask for confirmation twice before removing the account
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(self, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if confirm_dialog == QMessageBox.Yes:
-            confirm_message_again = "This action is irreversible. Are you absolutely sure?"
-            confirm_dialog_again = QMessageBox.question(self, "Confirm Removal", confirm_message_again, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if confirm_dialog_again == QMessageBox.Yes:
-                try:
-                    subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                    QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
-                    self.populate_accounts(dialog.findChild(QComboBox))
-                except subprocess.CalledProcessError as e:
-                    error_message = f"Error removing account: {e.stderr.decode()}"
-                    logging.error(error_message)
-                    QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
     def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
-        QMessageBox.about(self, "About", about_message)
-
-
-    def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
+        about_message = "PicoDulce Launcher\n\nA simple gui for the picomc proyect."
         QMessageBox.about(self, "About", about_message)
 
     def create_dark_palette(self):
-        palette = QPalette()
+        palette = QApplication.palette()
         palette.setColor(QPalette.Window, QColor(53, 53, 53))
         palette.setColor(QPalette.WindowText, Qt.white)
         palette.setColor(QPalette.Base, QColor(25, 25, 25))
@@ -342,102 +313,98 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.BrightText, Qt.red)
         palette.setColor(QPalette.Link, QColor(42, 130, 218))
         palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
+        palette.setColor(QPalette.HighlightedText, Qt.white)  # Change highlighted text color to white
         return palette
-
-    def open_mod_loader_menu(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Mod Loader Installer')
-        dialog.setFixedSize(300, 200)
-
-        # Create title label
-        title_label = QLabel('Mod Loader Installer')
-        title_label.setFont(QFont("Arial", 14))
-
-        # Create checkboxes for mod loaders
-        forge_checkbox = QCheckBox('Forge')
-        fabric_checkbox = QCheckBox('Fabric')
-
-        # Create dropdown menu for versions
-        version_combo = QComboBox()
-
-        def update_versions():
-            version_combo.clear()
-            if forge_checkbox.isChecked():
-                self.populate_available_releases(version_combo, True, False)
-            elif fabric_checkbox.isChecked():
-                self.populate_available_releases(version_combo, False, True)
-
-        forge_checkbox.clicked.connect(update_versions)
-        fabric_checkbox.clicked.connect(update_versions)
-
-        # Set layout
-        layout = QVBoxLayout()
-        layout.addWidget(title_label)
-        layout.addWidget(forge_checkbox)
-        layout.addWidget(fabric_checkbox)
-        layout.addWidget(version_combo)
-
-        # Create install button
-        install_button = QPushButton('Install')
-        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
-        layout.addWidget(install_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-
-    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+    
+def install_dependencies(pip, picomc):
+    if(pip == False):
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            logging.info("Installing Pip")
+            process = subprocess.Popen(['py', '-m', 'ensurepip', '--upgrade'])
             output, error = process.communicate()
+            process.wait()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
+            logging.info("Pip installed successfully")
         except subprocess.CalledProcessError as e:
             logging.error("Error: %s", e.stderr)
-            return
 
-        if install_fabric:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
-        elif install_forge:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
-        else:
-            releases = output.splitlines()
-
-        version_combo.clear()
-        version_combo.addItems(releases)
-
-    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
-        if not install_forge and not install_fabric:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
-        mod_loader = None
-        if install_forge:
-            mod_loader = 'forge'
-        elif install_fabric:
-            mod_loader = 'fabric'
-
-        if not mod_loader:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
+    if(picomc == False):
         try:
-            if mod_loader == 'forge':
-                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
-            elif mod_loader == 'fabric':
-                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
-            self.populate_installed_versions()  # Refresh the installed versions list after installation
+            logging.info("Installing Picomc")
+            process = subprocess.Popen(['py', '-m', 'pip', 'install', 'picomc'])
+            output, error = process.communicate()
+            process.wait()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+            else:
+                logging.info("Picomc installed successfully")
         except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
-            logging.error(error_message)
+            logging.error("Error: %s", e.stderr)
+    
+def check_dependencies():
+    pip = True
+    picomc = True
+    
+    #Check if Piython is installed
+    try:
+        logging.info("Searching for Python")
+        process = subprocess.Popen(['py', '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,)
+        process.wait()
+        output, error = process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args, error)
+    except FileNotFoundError:
+                ctypes.windll.user32.MessageBoxW(0, 'This launcher needs Python to work \n' + "https://www.python.org/", "Python is not installed!", 0)
+                input("Install Python and press any key")
+                check_dependencies()
+    except subprocess.CalledProcessError as e:
+        ctypes.windll.user32.MessageBoxW(0, 'This launcher needs Python to work \n' + "https://www.python.org/", "Python is not installed!", 0)
+        input("Install Python and press any key")
+        check_dependencies()
 
+    #Chekc if Pip is installed
+    try:
+        logging.info("Searching for Pip")
+        process = subprocess.Popen(['py', '-m', 'pip'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,)
+        output, error = process.communicate()
+        process.wait()
+        if process.returncode != 0:
+            pip = False
+            raise subprocess.CalledProcessError(process.returncode, process.args, error)
+    except FileNotFoundError:
+        logging.error("'Pip' command not found")
+        pip = False
+    if(pip):
+        logging.info("Pip is installed")
+
+    #Check if Picomc is installed
+    try:
+        logging.info("Searching for Picomc")
+        process = subprocess.Popen(['picomc'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,)
+        process.wait()
+        output, error = process.communicate()
+        if process.returncode != 0:
+            picomc = False;
+            raise subprocess.CalledProcessError(process.returncode, process.args, error)
+    except FileNotFoundError:
+        logging.error("'picomc' command not found")
+        picomc = False
+    
+    if(picomc):
+        logging.info("Picomc is installed")
+
+    install_dependencies(pip, picomc)
+
+                
 if __name__ == '__main__':
+
+    check_dependencies()
+
     app = QApplication(sys.argv)
     window = PicomcVersionSelector()
+    ctypes.windll.user32.ShowWindow( ctypes.windll.kernel32.GetConsoleWindow(), 0 )
     window.show()
+
     sys.exit(app.exec_())
+    
