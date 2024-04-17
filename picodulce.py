@@ -324,10 +324,6 @@ class PicomcVersionSelector(QWidget):
         QMessageBox.about(self, "About", about_message)
 
 
-    def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
-        QMessageBox.about(self, "About", about_message)
-
     def create_dark_palette(self):
         palette = QPalette()
         palette.setColor(QPalette.Window, QColor(53, 53, 53))
