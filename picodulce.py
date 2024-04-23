@@ -2,6 +2,7 @@ import sys
 import subprocess
 import threading
 import logging
+import os
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
@@ -64,6 +65,12 @@ class PicomcVersionSelector(QWidget):
         self.install_mod_loader_button.clicked.connect(self.open_mod_loader_menu)
         buttons_layout.addWidget(self.install_mod_loader_button)
 
+        # Create a button for the marroc mod loader
+        self.open_marroc_button = QPushButton('Marroc Mod Manager')
+        self.open_marroc_button.clicked.connect(self.open_marroc_script)
+        buttons_layout.addWidget(self.open_marroc_button)
+
+
         # Create About button
         self.about_button = QPushButton('About')
         self.about_button.clicked.connect(self.show_about_dialog)
@@ -105,6 +112,16 @@ class PicomcVersionSelector(QWidget):
         # Populate installed versions combo box
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
+
+    def open_marroc_script(self):
+        try:
+            # Replace 'path_to_marroc.py' with the actual path to marroc.py
+            subprocess.Popen(['python', 'marroc.py'])
+        except FileNotFoundError:
+            logging.error("'marroc.py' not found.")
+            QMessageBox.critical(self, "Error", "'marroc.py' not found.")
+
+
 
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
