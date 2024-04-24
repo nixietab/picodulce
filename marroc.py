@@ -3,11 +3,9 @@ import os
 import shutil
 import json
 import requests
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QComboBox, QDialog, QTabWidget, QFileDialog, QListView
-from PyQt5.QtCore import Qt, QSize, QDir, QStringListModel
-from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor
-
-
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QComboBox, QDialog, QTabWidget, QMainWindow, QSpacerItem, QSizePolicy
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 
 CONFIG_FILE = "config.json"
 
@@ -15,25 +13,30 @@ class ModrinthSearchApp(QWidget):
     def __init__(self):
         super().__init__()
 
+        # Check and create folders if they don't exist
+        self.check_and_create_folders()
+
         self.setWindowTitle("Marroc Mod Manager")
         self.setGeometry(100, 100, 500, 400)
 
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        palette.setColor(QPalette.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        self.setPalette(palette)
-
+        # Set Fusion style
+        app.setStyle("Fusion")
+        # Set dark color palette
+        dark_palette = QPalette()
+        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.WindowText, Qt.white)
+        dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
+        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
+        dark_palette.setColor(QPalette.Text, Qt.white)
+        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ButtonText, Qt.white)
+        dark_palette.setColor(QPalette.BrightText, Qt.red)
+        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.HighlightedText, Qt.white)
+        self.setPalette(dark_palette)
 
         layout = QVBoxLayout()
 
@@ -51,16 +54,30 @@ class ModrinthSearchApp(QWidget):
 
         self.setLayout(layout)
 
+    def check_and_create_folders(self):
+        # Check and create 'marroc/mods' and 'marroc/resourcepacks' folders if they don't exist
+        folders = ['marroc/mods', 'marroc/resourcepacks']
+        for folder in folders:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
     def init_search_tab(self):
         layout = QVBoxLayout()
 
+        search_layout = QHBoxLayout()  # Horizontal layout for search bar and dropdown
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Enter mod name...")
-        layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_input)
 
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.search_mods)
-        layout.addWidget(self.search_button)
+        search_layout.addWidget(self.search_button)
+
+        self.search_type_dropdown = QComboBox()  # Dropdown for selecting mod type
+        self.search_type_dropdown.addItems(["Mod", "Texture Pack"])
+        search_layout.addWidget(self.search_type_dropdown)
+
+        layout.addLayout(search_layout)
 
         self.mods_list = QListWidget()
         layout.addWidget(self.mods_list)
@@ -75,14 +92,18 @@ class ModrinthSearchApp(QWidget):
 
     def init_mods_tab(self):
         layout = QVBoxLayout()
-        self.mod_manager = ModManager()  # Integrate ModManager into Mods Tab
-        layout.addWidget(self.mod_manager)
+        self.mod_manager_window = ModManagerWindow()  # Initialize ModManagerWindow
+        layout.addWidget(self.mod_manager_window)
         self.mods_tab.setLayout(layout)
 
     def search_mods(self):
         self.mods_list.clear()
         mod_name = self.search_input.text()
-        api_url = f"https://api.modrinth.com/v2/search?query={mod_name}&limit=20&facets=%5B%5B%22project_type%3Amod%22%5D%5D"
+        search_type = self.search_type_dropdown.currentText().lower()  # Get selected mod type
+        if search_type == "texture pack":
+            api_url = f"https://api.modrinth.com/v2/search?query={mod_name}&limit=20&facets=%5B%5B%22project_type%3Aresourcepack%22%5D%5D"
+        else:
+            api_url = f"https://api.modrinth.com/v2/search?query={mod_name}&limit=20&facets=%5B%5B%22project_type%3A{search_type}%22%5D%5D"
         response = requests.get(api_url)
         if response.status_code == 200:
             mods_data = json.loads(response.text)
@@ -135,152 +156,172 @@ class ModrinthSearchApp(QWidget):
         else:
             return []
 
-class ModManager(QWidget):
+class ModManagerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Mod Manager")
         self.setGeometry(100, 100, 600, 400)
 
-        self.load_config()
-        self.mods = []
-        self.available_mods = []
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
 
-        layout = QHBoxLayout()
+        self.layout = QHBoxLayout(self.central_widget)
 
-        layout_mods = QVBoxLayout()
-        layout_buttons = QVBoxLayout()
-        layout_arrow = QVBoxLayout()
-        layout_available_mods = QVBoxLayout()
+        # Combo box to select between mods and resource packs
+        self.file_type_combo_box = QComboBox()
+        self.file_type_combo_box.addItems(["Mods", "Resource Packs"])
+        self.file_type_combo_box.currentIndexChanged.connect(self.load_files)
 
-        self.list_view_mods = QListView()
-        self.list_view_mods.doubleClicked.connect(self.move_mod_to_local)
-        self.list_view_available_mods = QListView()
-        self.list_view_available_mods.doubleClicked.connect(self.move_mod_to_minecraft)
-        self.populate_mod_list()
+        # Left column - Available files
+        self.available_files_widget = QListWidget()
 
-        self.arrow_right_button = QPushButton(">")
-        self.arrow_right_button.setIcon(QIcon('arrow_right.png'))
-        self.arrow_right_button.setIconSize(QSize(32, 32))
-        self.arrow_right_button.clicked.connect(self.move_mod_to_minecraft)
+        # Right column - Installed files
+        self.installed_files_widget = QListWidget()
 
-        self.arrow_left_button = QPushButton("<")
-        self.arrow_left_button.setIcon(QIcon('arrow_left.png'))
-        self.arrow_left_button.setIconSize(QSize(32, 32))
-        self.arrow_left_button.clicked.connect(self.move_mod_to_local)
+        # Vertical layout for buttons and dropdown
+        self.button_dropdown_layout = QVBoxLayout()
+        self.button_dropdown_layout.addWidget(self.file_type_combo_box)
 
+        # Spacer to center the buttons vertically
+        self.button_dropdown_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        # Button to move selected mod from available to installed
+        self.move_right_button = QPushButton(">")
+        self.move_right_button.clicked.connect(self.move_right)
+        self.button_dropdown_layout.addWidget(self.move_right_button)
+
+        # Button to move selected mod from installed to available
+        self.move_left_button = QPushButton("<")
+        self.move_left_button.clicked.connect(self.move_left)
+        self.button_dropdown_layout.addWidget(self.move_left_button)
+
+        # Button to delete selected item
         self.delete_button = QPushButton("Delete")
-        self.delete_button.clicked.connect(self.delete_mod)
+        self.delete_button.clicked.connect(self.delete_selected_item)
+        self.button_dropdown_layout.addWidget(self.delete_button)
 
-        self.config_button = QPushButton("Config")
-        self.config_button.clicked.connect(self.select_mods_directory)
+        # Spacer to center the buttons vertically
+        self.button_dropdown_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
-        self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(self.refresh_mod_list)
+        # Add widgets to the layout
+        self.layout.addWidget(self.available_files_widget)
+        self.layout.addLayout(self.button_dropdown_layout)
+        self.layout.addWidget(self.installed_files_widget)
 
-        layout_mods.addWidget(self.list_view_mods)
-        layout_buttons.addWidget(self.arrow_right_button)
-        layout_buttons.addWidget(self.arrow_left_button)
-        layout_buttons.addWidget(self.delete_button)
-        layout_buttons.addWidget(self.config_button)
-        layout_buttons.addWidget(self.refresh_button)  # Add refresh button
-        layout_arrow.addLayout(layout_buttons)
-        layout_available_mods.addWidget(self.list_view_available_mods)
+        # Load files based on initial selection
+        self.load_files()
 
-        layout.addLayout(layout_mods)
-        layout.addLayout(layout_arrow)
-        layout.addLayout(layout_available_mods)
+    def load_files(self):
+        file_type = self.file_type_combo_box.currentText()
+        if file_type == "Mods":
+            self.load_mods()
+        elif file_type == "Resource Packs":
+            self.load_resource_packs()
 
-        self.setLayout(layout)
+    def load_mods(self):
+        # Load mods from specified directory
+        mods_directory = "marroc/mods"
+        if os.path.exists(mods_directory) and os.path.isdir(mods_directory):
+            mods = os.listdir(mods_directory)
+            self.available_files_widget.clear()
+            self.available_files_widget.addItems(mods)
 
-    # Other methods remain unchanged
+        # Load installed mods
+        self.load_installed_mods("mods")
 
-    def refresh_mod_list(self):
-        self.populate_mod_list()
+    def load_resource_packs(self):
+        # Load resource packs from specified directory
+        resource_packs_directory = "marroc/resourcepacks"
+        if os.path.exists(resource_packs_directory) and os.path.isdir(resource_packs_directory):
+            resource_packs = os.listdir(resource_packs_directory)
+            self.available_files_widget.clear()
+            self.available_files_widget.addItems(resource_packs)
 
-    def load_config(self):
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                self.mod_folder = config.get('mod_folder')
-                if not self.mod_folder:
-                    self.set_default_mod_folder()
+        # Load installed resource packs
+        self.load_installed_mods("resourcepacks")
+
+    def load_installed_mods(self, file_type):
+        # Detect Minecraft directory based on the operating system
+        if sys.platform.startswith('linux'):
+            minecraft_directory = os.path.expanduser("~/.local/share/picomc/instances/default/minecraft")
+        elif sys.platform.startswith('win'):
+            minecraft_directory = os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft')
         else:
-            self.set_default_mod_folder()
+            minecraft_directory = ""
 
-    def set_default_mod_folder(self):
-        if sys.platform == 'win32':
-            self.mod_folder = os.path.expandvars('%APPDATA%\\.picomc\\instances\\default\\mods')
-        elif sys.platform == 'linux':
-            self.mod_folder = os.path.expanduser('~/.local/share/picomc/instances/default/minecraft/mods')
+        if minecraft_directory:
+            installed_files_directory = os.path.join(minecraft_directory, file_type)
+            if os.path.exists(installed_files_directory) and os.path.isdir(installed_files_directory):
+                installed_files = os.listdir(installed_files_directory)
+                self.installed_files_widget.clear()
+                self.installed_files_widget.addItems(installed_files)
+
+    def move_right(self):
+        selected_item = self.available_files_widget.currentItem()
+        if selected_item:
+            source_directory = self.get_source_directory()
+            destination_directory = self.get_destination_directory()
+            file_name = selected_item.text()
+            source_path = os.path.join(source_directory, file_name)
+            destination_path = os.path.join(destination_directory, file_name)
+            shutil.move(source_path, destination_path)
+            self.load_files()
+
+    def move_left(self):
+        selected_item = self.installed_files_widget.currentItem()
+        if selected_item:
+            source_directory = self.get_destination_directory()
+            destination_directory = self.get_source_directory()
+            file_name = selected_item.text()
+            source_path = os.path.join(source_directory, file_name)
+            destination_path = os.path.join(destination_directory, file_name)
+            shutil.move(source_path, destination_path)
+            self.load_files()
+
+    def delete_selected_item(self):
+        selected_item = self.available_files_widget.currentItem() or self.installed_files_widget.currentItem()
+        if selected_item:
+            file_name = selected_item.text()
+            reply = QMessageBox.question(self, 'Delete Item', f'Are you sure you want to delete "{file_name}"?',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                file_type = self.file_type_combo_box.currentText()
+                if file_type == "Mods":
+                    directory = "marroc/mods"
+                elif file_type == "Resource Packs":
+                    directory = "marroc/resourcepacks"
+                else:
+                    return
+                file_path = os.path.join(directory, file_name)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    self.load_files()
+                else:
+                    QMessageBox.warning(self, 'File Not Found', 'The selected file does not exist.')
+
+    def get_source_directory(self):
+        file_type = self.file_type_combo_box.currentText()
+        if file_type == "Mods":
+            return "marroc/mods"
+        elif file_type == "Resource Packs":
+            return "marroc/resourcepacks"
         else:
-            self.mod_folder = QDir.homePath()
+            return ""
 
-    def save_config(self):
-        config = {'mod_folder': self.mod_folder}
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f)
-
-    def populate_mod_list(self):
-        self.available_mods = os.listdir(self.mod_folder)
-        self.mods = [f for f in os.listdir('.') if os.path.isfile(f) and f.endswith('.jar')]
-        
-        self.model_mods = QStringListModel(self.mods)
-        self.model_available_mods = QStringListModel(self.available_mods)
-        
-        self.list_view_mods.setModel(self.model_mods)
-        self.list_view_available_mods.setModel(self.model_available_mods)
-
-    def move_mod_to_minecraft(self):
-        selected_mod_index = self.list_view_mods.currentIndex()
-        selected_mod = self.mods[selected_mod_index.row()]
-        destination_path = os.path.join(self.mod_folder, os.path.basename(selected_mod))
-        
-        if os.path.exists(destination_path):
-            QMessageBox.warning(self, "Error", "A mod with the same name already exists in the mods folder.")
+    def get_destination_directory(self):
+        file_type = self.file_type_combo_box.currentText()
+        if file_type == "Mods":
+            if sys.platform.startswith('linux'):
+                return os.path.expanduser("~/.local/share/picomc/instances/default/minecraft/mods")
+            elif sys.platform.startswith('win'):
+                return os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft/mods')
+        elif file_type == "Resource Packs":
+            if sys.platform.startswith('linux'):
+                return os.path.expanduser("~/.local/share/picomc/instances/default/minecraft/resourcepacks")
+            elif sys.platform.startswith('win'):
+                return os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft/resourcepacks')
         else:
-            shutil.move(selected_mod, self.mod_folder)
-            self.available_mods.append(selected_mod)
-            self.model_available_mods.setStringList(self.available_mods)
-
-            # Update the lists
-            self.populate_mod_list()
-            self.save_config()
-
-    def move_mod_to_local(self):
-        selected_mod_index = self.list_view_available_mods.currentIndex()
-        selected_mod = self.available_mods[selected_mod_index.row()]
-        destination_path = os.path.join(os.getcwd(), os.path.basename(selected_mod))
-        
-        if os.path.exists(destination_path):
-            QMessageBox.warning(self, "Error", "A mod with the same name already exists in the current directory.")
-        else:
-            shutil.move(os.path.join(self.mod_folder, selected_mod), os.getcwd())
-            self.mods.append(selected_mod)
-            self.model_mods.setStringList(self.mods)
-
-            # Update the lists
-            self.populate_mod_list()
-            self.save_config()
-
-    def delete_mod(self):
-        selected_mod_index = self.list_view_available_mods.currentIndex()
-        selected_mod = self.available_mods[selected_mod_index.row()]
-
-        reply = QMessageBox.question(self, 'Confirmation', f"Are you sure you want to delete '{selected_mod}'?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            os.remove(os.path.join(self.mod_folder, selected_mod))
-            self.available_mods.remove(selected_mod)
-            self.model_available_mods.setStringList(self.available_mods)
-            self.save_config()
-
-    def select_mods_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select Minecraft Mods Directory", self.mod_folder)
-        if directory:
-            self.mod_folder = directory
-            self.populate_mod_list()
-            self.save_config()
-
+            return ""
 
 class ModDetailsWindow(QDialog):
     def __init__(self, mod_data, icon_url, mod_versions):
@@ -348,7 +389,8 @@ class ModDetailsWindow(QDialog):
                 try:
                     response = requests.get(file_url)
                     response.raise_for_status()
-                    with open(filename, 'wb') as f:
+                    save_dir = "marroc/mods" if filename.endswith('.jar') else "marroc/resourcepacks"
+                    with open(os.path.join(save_dir, filename), 'wb') as f:
                         f.write(response.content)
                     QMessageBox.information(self, "Download Mod", f"Downloaded {filename} successfully.")
                     return
