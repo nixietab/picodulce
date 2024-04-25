@@ -26,10 +26,10 @@ class IconLoader(QObject, threading.Thread):
                 pixmap.loadFromData(response.content)
                 self.icon_loaded.emit(pixmap.scaled(QSize(42, 42), Qt.KeepAspectRatio, Qt.SmoothTransformation))
             else:
-                self.icon_loaded.emit(None)
+                self.icon_loaded.emit(QPixmap("missing.png"))
         except Exception as e:
             print("Error loading icon:", e)
-            self.icon_loaded.emit(None)
+            self.icon_loaded.emit(QPixmap("missing.png"))
 
 class ModrinthSearchApp(QWidget):
     def __init__(self):
@@ -138,7 +138,7 @@ class ModrinthSearchApp(QWidget):
             item.setData(Qt.DecorationRole, pixmap)
         else:
             # Set a default icon if loading failed
-            item.setIcon(QIcon("default_icon.png"))
+            item.setIcon(QIcon("missing.png"))
 
     def show_mod_details_window(self):
         selected_item = self.mods_list.currentItem()
