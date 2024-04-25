@@ -454,3 +454,4 @@ if __name__ == '__main__':
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
+    

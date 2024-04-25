@@ -2,19 +2,38 @@ import sys
 import os
 import shutil
 import json
+import threading
 import requests
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QComboBox, QDialog, QTabWidget, QMainWindow, QSpacerItem, QSizePolicy
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QObject, pyqtSignal
 from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 
 CONFIG_FILE = "config.json"
 
+class IconLoader(QObject, threading.Thread):
+    icon_loaded = pyqtSignal(QPixmap)
+
+    def __init__(self, icon_url):
+        super().__init__()
+        threading.Thread.__init__(self)
+        self.icon_url = icon_url
+
+    def run(self):
+        try:
+            response = requests.get(self.icon_url)
+            if response.status_code == 200:
+                pixmap = QPixmap()
+                pixmap.loadFromData(response.content)
+                self.icon_loaded.emit(pixmap.scaled(QSize(42, 42), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                self.icon_loaded.emit(None)
+        except Exception as e:
+            print("Error loading icon:", e)
+            self.icon_loaded.emit(None)
+
 class ModrinthSearchApp(QWidget):
     def __init__(self):
         super().__init__()
-
-        # Check and create folders if they don't exist
-        self.check_and_create_folders()
 
         self.setWindowTitle("Marroc Mod Manager")
         self.setGeometry(100, 100, 500, 400)
@@ -45,7 +64,7 @@ class ModrinthSearchApp(QWidget):
         self.mods_tab = QWidget()
 
         tab_widget.addTab(self.search_tab, "Search")
-        tab_widget.addTab(self.mods_tab, "Mods")
+        tab_widget.addTab(self.mods_tab, "Manager")
 
         self.init_search_tab()
         self.init_mods_tab()
@@ -54,26 +73,19 @@ class ModrinthSearchApp(QWidget):
 
         self.setLayout(layout)
 
-    def check_and_create_folders(self):
-        # Check and create 'marroc/mods' and 'marroc/resourcepacks' folders if they don't exist
-        folders = ['marroc/mods', 'marroc/resourcepacks']
-        for folder in folders:
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-
     def init_search_tab(self):
         layout = QVBoxLayout()
 
-        search_layout = QHBoxLayout()  # Horizontal layout for search bar and dropdown
+        search_layout = QHBoxLayout()  
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Enter mod name...")
+        self.search_input.setPlaceholderText("Enter a search term...")
         search_layout.addWidget(self.search_input)
 
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.search_mods)
         search_layout.addWidget(self.search_button)
 
-        self.search_type_dropdown = QComboBox()  # Dropdown for selecting mod type
+        self.search_type_dropdown = QComboBox()  
         self.search_type_dropdown.addItems(["Mod", "Texture Pack"])
         search_layout.addWidget(self.search_type_dropdown)
 
@@ -82,7 +94,7 @@ class ModrinthSearchApp(QWidget):
         self.mods_list = QListWidget()
         layout.addWidget(self.mods_list)
 
-        self.select_button = QPushButton("Select Mod")
+        self.select_button = QPushButton("Select")
         self.select_button.clicked.connect(self.show_mod_details_window)
         layout.addWidget(self.select_button)
 
@@ -92,14 +104,14 @@ class ModrinthSearchApp(QWidget):
 
     def init_mods_tab(self):
         layout = QVBoxLayout()
-        self.mod_manager_window = ModManagerWindow()  # Initialize ModManagerWindow
+        self.mod_manager_window = ModManagerWindow()  
         layout.addWidget(self.mod_manager_window)
         self.mods_tab.setLayout(layout)
 
     def search_mods(self):
         self.mods_list.clear()
         mod_name = self.search_input.text()
-        search_type = self.search_type_dropdown.currentText().lower()  # Get selected mod type
+        search_type = self.search_type_dropdown.currentText().lower()  
         if search_type == "texture pack":
             api_url = f"https://api.modrinth.com/v2/search?query={mod_name}&limit=20&facets=%5B%5B%22project_type%3Aresourcepack%22%5D%5D"
         else:
@@ -110,12 +122,23 @@ class ModrinthSearchApp(QWidget):
             for mod in mods_data['hits']:
                 mod_name = mod['title']
                 mod_description = mod['description']
+                icon_url = mod['icon_url']
                 item = QListWidgetItem(f"Title: {mod_name}\nDescription: {mod_description}")
-                item.setSizeHint(QSize(100, 50))  # Set size hint to increase height
+                item.setSizeHint(QSize(200, 50))  
+                icon_loader = IconLoader(icon_url)
+                icon_loader.icon_loaded.connect(lambda pixmap, item=item: self.set_item_icon(item, pixmap))
+                icon_loader.start()
                 item.mod_data = mod
                 self.mods_list.addItem(item)
         else:
             self.mods_list.addItem("Failed to fetch mods. Please try again later.")
+
+    def set_item_icon(self, item, pixmap):
+        if pixmap:
+            item.setData(Qt.DecorationRole, pixmap)
+        else:
+            # Set a default icon if loading failed
+            item.setIcon(QIcon("default_icon.png"))
 
     def show_mod_details_window(self):
         selected_item = self.mods_list.currentItem()
@@ -167,48 +190,32 @@ class ModManagerWindow(QMainWindow):
 
         self.layout = QHBoxLayout(self.central_widget)
 
-        # Combo box to select between mods and resource packs
         self.file_type_combo_box = QComboBox()
         self.file_type_combo_box.addItems(["Mods", "Resource Packs"])
         self.file_type_combo_box.currentIndexChanged.connect(self.load_files)
 
-        # Left column - Available files
         self.available_files_widget = QListWidget()
 
-        # Right column - Installed files
         self.installed_files_widget = QListWidget()
 
-        # Vertical layout for buttons and dropdown
         self.button_dropdown_layout = QVBoxLayout()
         self.button_dropdown_layout.addWidget(self.file_type_combo_box)
-
-        # Spacer to center the buttons vertically
         self.button_dropdown_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
-
-        # Button to move selected mod from available to installed
         self.move_right_button = QPushButton(">")
         self.move_right_button.clicked.connect(self.move_right)
         self.button_dropdown_layout.addWidget(self.move_right_button)
-
-        # Button to move selected mod from installed to available
         self.move_left_button = QPushButton("<")
         self.move_left_button.clicked.connect(self.move_left)
         self.button_dropdown_layout.addWidget(self.move_left_button)
-
-        # Button to delete selected item
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.delete_selected_item)
         self.button_dropdown_layout.addWidget(self.delete_button)
-
-        # Spacer to center the buttons vertically
         self.button_dropdown_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
-        # Add widgets to the layout
         self.layout.addWidget(self.available_files_widget)
         self.layout.addLayout(self.button_dropdown_layout)
         self.layout.addWidget(self.installed_files_widget)
 
-        # Load files based on initial selection
         self.load_files()
 
     def load_files(self):
@@ -219,36 +226,28 @@ class ModManagerWindow(QMainWindow):
             self.load_resource_packs()
 
     def load_mods(self):
-        # Load mods from specified directory
         mods_directory = "marroc/mods"
         if os.path.exists(mods_directory) and os.path.isdir(mods_directory):
             mods = os.listdir(mods_directory)
             self.available_files_widget.clear()
             self.available_files_widget.addItems(mods)
-
-        # Load installed mods
         self.load_installed_mods("mods")
 
     def load_resource_packs(self):
-        # Load resource packs from specified directory
         resource_packs_directory = "marroc/resourcepacks"
         if os.path.exists(resource_packs_directory) and os.path.isdir(resource_packs_directory):
             resource_packs = os.listdir(resource_packs_directory)
             self.available_files_widget.clear()
             self.available_files_widget.addItems(resource_packs)
-
-        # Load installed resource packs
         self.load_installed_mods("resourcepacks")
 
     def load_installed_mods(self, file_type):
-        # Detect Minecraft directory based on the operating system
         if sys.platform.startswith('linux'):
             minecraft_directory = os.path.expanduser("~/.local/share/picomc/instances/default/minecraft")
         elif sys.platform.startswith('win'):
             minecraft_directory = os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft')
         else:
             minecraft_directory = ""
-
         if minecraft_directory:
             installed_files_directory = os.path.join(minecraft_directory, file_type)
             if os.path.exists(installed_files_directory) and os.path.isdir(installed_files_directory):
@@ -330,7 +329,7 @@ class ModDetailsWindow(QDialog):
         self.setWindowTitle("Mod Details")
         self.setGeometry(100, 100, 400, 300)
 
-        self.mod_data = mod_data  # Store mod data
+        self.mod_data = mod_data  
 
         layout = QVBoxLayout()
 
@@ -345,7 +344,7 @@ class ModDetailsWindow(QDialog):
         icon_pixmap = self.load_icon(icon_url)
         icon_label = QLabel()
         if icon_pixmap:
-            icon_label.setPixmap(icon_pixmap.scaledToWidth(200))
+            icon_label.setPixmap(icon_pixmap)
             icon_label.setAlignment(Qt.AlignCenter)
             layout.addWidget(icon_label)
 
@@ -373,7 +372,7 @@ class ModDetailsWindow(QDialog):
             if response.status_code == 200:
                 pixmap = QPixmap()
                 pixmap.loadFromData(response.content)
-                return pixmap
+                return pixmap.scaled(QSize(128, 128), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             else:
                 return None
         except Exception as e:
@@ -401,8 +400,8 @@ class ModDetailsWindow(QDialog):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app_icon = QIcon('marroc.ico')  # Provide the path to your icon file
-    app.setWindowIcon(app_icon)  # Set the application icon
+    app_icon = QIcon('marroc.ico')  
+    app.setWindowIcon(app_icon)  
     window = ModrinthSearchApp()
     window.show()
     sys.exit(app.exec_())
