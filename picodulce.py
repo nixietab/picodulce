@@ -226,7 +226,7 @@ class PicomcVersionSelector(QWidget):
     def manage_accounts(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Manage Accounts')
-        dialog.setFixedSize(300, 200)
+        dialog.setFixedSize(400, 250)
 
         # Create title label
         title_label = QLabel('Manage Accounts')
@@ -240,32 +240,67 @@ class PicomcVersionSelector(QWidget):
         select_button = QPushButton('Select')
         select_button.clicked.connect(lambda: self.set_default_account(dialog, account_combo.currentText()))
 
-        # Set layout
-        layout = QVBoxLayout()
-        layout.addWidget(title_label)
-        layout.addWidget(account_combo)
-        layout.addWidget(select_button)
+        # Create input field for account name
+        account_input = QLineEdit()
+        account_input.setPlaceholderText('Xx_PussySlayer_xX')
 
-        # Create a separate section for creating a new account
-        create_account_layout = QHBoxLayout()
-        new_account_input = QLineEdit()
+        # Create button to create new account
         create_account_button = QPushButton('Create')
-        create_account_button.clicked.connect(lambda: self.create_account(dialog, new_account_input.text()))
-        create_account_layout.addWidget(new_account_input)
-        create_account_layout.addWidget(create_account_button)
+        create_account_button.clicked.connect(lambda: self.create_account(dialog, account_input.text(), microsoft_checkbox.isChecked()))
 
-        layout.addLayout(create_account_layout)
+        # Create checkbox for Microsoft account
+        microsoft_checkbox = QCheckBox('Microsoft Account')
 
-        # Create a separate section for removing an account
-        remove_account_layout = QHBoxLayout()
+        # Create button to authenticate
+        authenticate_button = QPushButton('Authenticate')
+        authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
+
+        # Create button to remove account
         remove_account_button = QPushButton('Remove Account')
         remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
+
+        # Create layout for account selection
+        account_selection_layout = QVBoxLayout()
+        account_selection_layout.addWidget(title_label)
+        account_selection_layout.addWidget(account_combo)
+        account_selection_layout.addWidget(select_button)
+
+        # Create layout for account creation
+        create_account_layout = QHBoxLayout()
+        create_account_layout.addWidget(account_input)
+        create_account_layout.addWidget(create_account_button)
+
+        # Create layout for Microsoft account checkbox and authenticate button
+        microsoft_layout = QVBoxLayout()
+        microsoft_layout.addWidget(microsoft_checkbox)
+        microsoft_layout.addWidget(authenticate_button)
+
+        # Create layout for remove account button
+        remove_account_layout = QVBoxLayout()
         remove_account_layout.addWidget(remove_account_button)
 
-        layout.addLayout(remove_account_layout)
+        # Create main layout
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(account_selection_layout)
+        main_layout.addLayout(create_account_layout)
+        main_layout.addLayout(microsoft_layout)
+  #      main_layout.addStretch(1)
+        main_layout.addLayout(remove_account_layout)
 
-        dialog.setLayout(layout)
+        dialog.setLayout(main_layout)
         dialog.exec_()
+
+    def authenticate_account(self, dialog, account_name):
+        # Remove leading " * " from the account name
+        account_name = account_name.strip().lstrip(" * ")
+        try:
+            subprocess.run(['picomc', 'account', 'authenticate', account_name], check=True)
+            QMessageBox.information(self, "Success", f"Account '{account_name}' authenticated successfully!")
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error authenticating account '{account_name}': {e.stderr.decode()}"
+            logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
+
 
     def populate_accounts(self, account_combo):
         # Run the command and get the output
@@ -289,12 +324,15 @@ class PicomcVersionSelector(QWidget):
         account_combo.clear()
         account_combo.addItems(accounts)
 
-    def create_account(self, dialog, username):
+    def create_account(self, dialog, username, is_microsoft):
         if username.strip() == '':
             QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
             return
         try:
-            subprocess.run(['picomc', 'account', 'create', username], check=True)
+            if is_microsoft:
+                subprocess.run(['picomc', 'account', 'create', username, '--ms'], check=True)
+            else:
+                subprocess.run(['picomc', 'account', 'create', username], check=True)
             QMessageBox.information(self, "Success", f"Account {username} created successfully!")
             self.populate_accounts(dialog.findChild(QComboBox))
         except subprocess.CalledProcessError as e:
