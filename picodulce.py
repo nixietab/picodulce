@@ -3,15 +3,14 @@ import subprocess
 import threading
 import logging
 import shutil
+import requests
 import json
 import os
-import requests
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -128,6 +127,8 @@ class PicomcVersionSelector(QWidget):
         except FileNotFoundError:
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
+
+
 
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
@@ -376,72 +377,123 @@ class PicomcVersionSelector(QWidget):
                     QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
                     self.populate_accounts(dialog.findChild(QComboBox))
                 except subprocess.CalledProcessError as e:
-                    error_message = f"Error removing account '{username}': {e.stderr.decode()}"
+                    error_message = f"Error removing account: {e.stderr.decode()}"
                     logging.error(error_message)
                     QMessageBox.critical(self, "Error", error_message)
 
+    def show_about_dialog(self):
+        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
+        QMessageBox.about(self, "About", about_message)
+
+
+    def create_dark_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.HighlightedText, Qt.white)
+        return palette
+
     def open_mod_loader_menu(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle('Install Mod Loader')
+        dialog.setWindowTitle('Mod Loader Installer')
         dialog.setFixedSize(300, 200)
 
         # Create title label
-        title_label = QLabel('Mod Loader Options')
+        title_label = QLabel('Mod Loader Installer')
         title_label.setFont(QFont("Arial", 14))
 
-        # Create buttons for Fabric and Forge
-        fabric_button = QPushButton('Fabric')
-        fabric_button.clicked.connect(lambda: self.install_mod_loader(dialog, 'fabric'))
+        # Create checkboxes for mod loaders
+        forge_checkbox = QCheckBox('Forge')
+        fabric_checkbox = QCheckBox('Fabric')
 
-        forge_button = QPushButton('Forge')
-        forge_button.clicked.connect(lambda: self.install_mod_loader(dialog, 'forge'))
+        # Create dropdown menu for versions
+        version_combo = QComboBox()
 
-        # Create layout
+        def update_versions():
+            version_combo.clear()
+            if forge_checkbox.isChecked():
+                self.populate_available_releases(version_combo, True, False)
+            elif fabric_checkbox.isChecked():
+                self.populate_available_releases(version_combo, False, True)
+
+        forge_checkbox.clicked.connect(update_versions)
+        fabric_checkbox.clicked.connect(update_versions)
+
+        # Set layout
         layout = QVBoxLayout()
         layout.addWidget(title_label)
-        layout.addWidget(fabric_button)
-        layout.addWidget(forge_button)
+        layout.addWidget(forge_checkbox)
+        layout.addWidget(fabric_checkbox)
+        layout.addWidget(version_combo)
+
+        # Create install button
+        install_button = QPushButton('Install')
+        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
+        layout.addWidget(install_button)
 
         dialog.setLayout(layout)
         dialog.exec_()
 
-    def install_mod_loader(self, dialog, mod_loader):
-        dialog.close()
+    def populate_available_releases(self, version_combo, install_forge, install_fabric):
         try:
-            subprocess.run(['picomc', 'install', mod_loader], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully!")
+            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
         except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader}: {e.stderr.decode()}"
-            logging.error(error_message)
+            logging.error("Error: %s", e.stderr)
+            return
+
+        if install_fabric:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
+        elif install_forge:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
+        else:
+            releases = output.splitlines()
+
+        version_combo.clear()
+        version_combo.addItems(releases)
+
+    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
+        if not install_forge and not install_fabric:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        mod_loader = None
+        if install_forge:
+            mod_loader = 'forge'
+        elif install_fabric:
+            mod_loader = 'fabric'
+
+        if not mod_loader:
+            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        try:
+            if mod_loader == 'forge':
+                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
+            elif mod_loader == 'fabric':
+                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
+            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+            self.populate_installed_versions()  # Refresh the installed versions list after installation
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
-    def create_dark_palette(self):
-        dark_palette = QPalette()
-        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.WindowText, Qt.white)
-        dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
-        dark_palette.setColor(QPalette.Text, Qt.white)
-        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ButtonText, Qt.white)
-        dark_palette.setColor(QPalette.BrightText, Qt.red)
-        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.HighlightedText, Qt.black)
-        return dark_palette
-
-    def show_about_dialog(self):
-        about_message = """
-        PicoDulce Launcher - Version 1.0
-
-        Developed by Your Name
-
-        This launcher allows you to manage your Minecraft versions,
-        accounts, and mod loaders with ease.
-        """
-        QMessageBox.about(self, "About", about_message)
 
     def check_for_update(self):
         try:
@@ -482,6 +534,7 @@ class PicomcVersionSelector(QWidget):
             logging.error("Error fetching remote version: %s", str(e))
             return None
 
+
     def download_update(self, version_info):
         try:
             update_folder = "update"
@@ -517,3 +570,4 @@ if __name__ == '__main__':
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
+    
