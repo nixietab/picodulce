@@ -2,12 +2,16 @@ import sys
 import subprocess
 import threading
 import logging
+import shutil
+import json
 import os
+import requests
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -70,6 +74,10 @@ class PicomcVersionSelector(QWidget):
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
+        # Create Update button
+        self.update_button = QPushButton('Update')
+        self.update_button.clicked.connect(self.check_for_update)
+        buttons_layout.addWidget(self.update_button)
 
         # Create About button
         self.about_button = QPushButton('About')
@@ -120,8 +128,6 @@ class PicomcVersionSelector(QWidget):
         except FileNotFoundError:
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
-
-
 
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
@@ -370,126 +376,144 @@ class PicomcVersionSelector(QWidget):
                     QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
                     self.populate_accounts(dialog.findChild(QComboBox))
                 except subprocess.CalledProcessError as e:
-                    error_message = f"Error removing account: {e.stderr.decode()}"
+                    error_message = f"Error removing account '{username}': {e.stderr.decode()}"
                     logging.error(error_message)
                     QMessageBox.critical(self, "Error", error_message)
 
-    def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
-        QMessageBox.about(self, "About", about_message)
-
-
-    def create_dark_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        palette.setColor(QPalette.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        return palette
-
     def open_mod_loader_menu(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle('Mod Loader Installer')
+        dialog.setWindowTitle('Install Mod Loader')
         dialog.setFixedSize(300, 200)
 
         # Create title label
-        title_label = QLabel('Mod Loader Installer')
+        title_label = QLabel('Mod Loader Options')
         title_label.setFont(QFont("Arial", 14))
 
-        # Create checkboxes for mod loaders
-        forge_checkbox = QCheckBox('Forge')
-        fabric_checkbox = QCheckBox('Fabric')
+        # Create buttons for Fabric and Forge
+        fabric_button = QPushButton('Fabric')
+        fabric_button.clicked.connect(lambda: self.install_mod_loader(dialog, 'fabric'))
 
-        # Create dropdown menu for versions
-        version_combo = QComboBox()
+        forge_button = QPushButton('Forge')
+        forge_button.clicked.connect(lambda: self.install_mod_loader(dialog, 'forge'))
 
-        def update_versions():
-            version_combo.clear()
-            if forge_checkbox.isChecked():
-                self.populate_available_releases(version_combo, True, False)
-            elif fabric_checkbox.isChecked():
-                self.populate_available_releases(version_combo, False, True)
-
-        forge_checkbox.clicked.connect(update_versions)
-        fabric_checkbox.clicked.connect(update_versions)
-
-        # Set layout
+        # Create layout
         layout = QVBoxLayout()
         layout.addWidget(title_label)
-        layout.addWidget(forge_checkbox)
-        layout.addWidget(fabric_checkbox)
-        layout.addWidget(version_combo)
-
-        # Create install button
-        install_button = QPushButton('Install')
-        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
-        layout.addWidget(install_button)
+        layout.addWidget(fabric_button)
+        layout.addWidget(forge_button)
 
         dialog.setLayout(layout)
         dialog.exec_()
 
-    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+    def install_mod_loader(self, dialog, mod_loader):
+        dialog.close()
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
+            subprocess.run(['picomc', 'install', mod_loader], check=True)
+            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully!")
         except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
-            return
-
-        if install_fabric:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
-        elif install_forge:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
-        else:
-            releases = output.splitlines()
-
-        version_combo.clear()
-        version_combo.addItems(releases)
-
-    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
-        if not install_forge and not install_fabric:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
-        mod_loader = None
-        if install_forge:
-            mod_loader = 'forge'
-        elif install_fabric:
-            mod_loader = 'fabric'
-
-        if not mod_loader:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
-        try:
-            if mod_loader == 'forge':
-                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
-            elif mod_loader == 'fabric':
-                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
-            self.populate_installed_versions()  # Refresh the installed versions list after installation
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
+            error_message = f"Error installing {mod_loader}: {e.stderr.decode()}"
             logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
+
+    def create_dark_palette(self):
+        dark_palette = QPalette()
+        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.WindowText, Qt.white)
+        dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
+        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
+        dark_palette.setColor(QPalette.Text, Qt.white)
+        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ButtonText, Qt.white)
+        dark_palette.setColor(QPalette.BrightText, Qt.red)
+        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.HighlightedText, Qt.black)
+        return dark_palette
+
+    def show_about_dialog(self):
+        about_message = """
+        PicoDulce Launcher - Version 1.0
+
+        Developed by Your Name
+
+        This launcher allows you to manage your Minecraft versions,
+        accounts, and mod loaders with ease.
+        """
+        QMessageBox.about(self, "About", about_message)
+
+    def check_for_update(self):
+        try:
+            with open("version.json") as f:
+                local_version_info = json.load(f)
+                local_version = local_version_info.get("version")
+                logging.info(f"Local version: {local_version}")
+                if local_version:
+                    remote_version_info = self.fetch_remote_version()
+                    remote_version = remote_version_info.get("version")
+                    logging.info(f"Remote version: {remote_version}")
+                    if remote_version and remote_version != local_version:
+                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                        if update_dialog == QMessageBox.Yes:
+                            # Download and apply the update
+                            self.download_update(remote_version_info)
+                    else:
+                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
+                else:
+                    logging.error("Failed to read local version information.")
+                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
+        except Exception as e:
+            logging.error("Error checking for updates: %s", str(e))
+            QMessageBox.critical(self, "Error", "Failed to check for updates.")
+
+    def fetch_remote_version(self):
+        try:
+            update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
+            response = requests.get(update_url)
+            if response.status_code == 200:
+                remote_version_info = response.json()
+                return remote_version_info
+            else:
+                logging.error("Failed to fetch update information.")
+                return None
+        except Exception as e:
+            logging.error("Error fetching remote version: %s", str(e))
+            return None
+
+    def download_update(self, version_info):
+        try:
+            update_folder = "update"
+            if not os.path.exists(update_folder):
+                os.makedirs(update_folder)
+            for link in version_info.get("links", []):
+                filename = os.path.basename(link)
+                response = requests.get(link, stream=True)
+                if response.status_code == 200:
+                    with open(os.path.join(update_folder, filename), 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=1024):
+                            f.write(chunk)
+                else:
+                    QMessageBox.critical(self, "Error", f"Failed to download update file: {filename}")
+            
+            # Move downloaded files one directory up
+            for file in os.listdir(update_folder):
+                src = os.path.join(update_folder, file)
+                dst = os.path.join(os.path.dirname(update_folder), file)
+                shutil.move(src, dst)
+            
+            # Remove the update folder
+            shutil.rmtree(update_folder)
+            
+            QMessageBox.information(self, "Update", "Updates downloaded successfully.")
+        except Exception as e:
+            logging.error("Error downloading updates: %s", str(e))
+            QMessageBox.critical(self, "Error", "Failed to download updates.")
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
-    
