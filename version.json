@@ -1,3 +1,6 @@
 {
-  "version": "0.3"
+  "version": "0.3",
+  "links": [
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
+  ]
 }
