@@ -125,6 +125,8 @@ class PicomcVersionSelector(QWidget):
             # Create config file with default values
             with open(config_path, "w") as config_file:
                 json.dump(default_config, config_file, indent=4)
+            self.check_config_file()
+
 
         # Load config from file
         with open(config_path, "r") as config_file:
@@ -192,6 +194,7 @@ class PicomcVersionSelector(QWidget):
         # Check if config file exists
         if not os.path.exists(config_path):
             logging.error("Config file not found.")
+            self.populate_installed_versions_normal_order()
             return
 
         # Load config from file
@@ -226,6 +229,30 @@ class PicomcVersionSelector(QWidget):
         # Populate installed versions combo box
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
+
+    def populate_installed_versions_normal_order(self):
+        # Run the command and get the output
+        try:
+            process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
+        except subprocess.CalledProcessError as e:
+            logging.error("Error: %s", e.stderr)
+            return
+
+        # Parse the output and replace '[local]' with a space
+        versions = output.splitlines()
+        versions = [version.replace('[local]', ' ').strip() for version in versions]
+
+        # Populate installed versions combo box
+        self.installed_version_combo.clear()
+        self.installed_version_combo.addItems(versions)
+
+
 
 
     def open_marroc_script(self):
