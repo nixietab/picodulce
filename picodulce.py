@@ -1,11 +1,14 @@
 import sys
 import subprocess
 import threading
+from threading import Thread
 import logging
 import shutil
 import requests
 import json
 import os
+from pypresence import Presence
+import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
@@ -17,6 +20,14 @@ class PicomcVersionSelector(QWidget):
         super().__init__()
 
         self.init_ui()
+        self.check_config_file()
+        if self.config.get("CheckUpdate", False):
+            self.check_for_update_start()
+
+        if self.config.get("IsRCPenabled", False):
+            discord_rcp_thread = Thread(target=self.start_discord_rcp)
+            discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
+            discord_rcp_thread.start()
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
@@ -73,10 +84,13 @@ class PicomcVersionSelector(QWidget):
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
-        # Create Update button
-        self.update_button = QPushButton('Update')
-        self.update_button.clicked.connect(self.check_for_update)
-        buttons_layout.addWidget(self.update_button)
+
+        # Inside the init_ui method of PicomcVersionSelector class
+
+        # Create button to open settings
+        self.settings_button = QPushButton('Settings')
+        self.settings_button.clicked.connect(self.open_settings_dialog)
+        buttons_layout.addWidget(self.settings_button)
 
         # Create About button
         self.about_button = QPushButton('About')
@@ -97,6 +111,80 @@ class PicomcVersionSelector(QWidget):
         main_layout.setSpacing(20)
 
         self.setLayout(main_layout)
+
+    def check_config_file(self):
+        config_path = "config.json"
+        default_config = {
+            "IsRCPenabled": False,
+            "CheckUpdate": False
+        }
+
+        # Check if config file exists
+        if not os.path.exists(config_path):
+            # Create config file with default values
+            with open(config_path, "w") as config_file:
+                json.dump(default_config, config_file, indent=4)
+
+        # Load config from file
+        with open(config_path, "r") as config_file:
+            self.config = json.load(config_file)
+
+
+
+    def open_settings_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Settings')
+        dialog.setFixedSize(300, 200)
+
+        # Create title label
+        title_label = QLabel('Settings')
+        title_label.setFont(QFont("Arial", 14))
+
+        # Add settings components here...
+
+        layout = QVBoxLayout()
+        layout.addWidget(title_label)
+
+        # Create Update button
+
+        discord_rcp_checkbox = QCheckBox('Discord RCP')
+        discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
+        check_updates_checkbox = QCheckBox('Check Updates on Start')
+        check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
+
+        # Add checkboxes to layout
+        layout.addWidget(discord_rcp_checkbox)
+        layout.addWidget(check_updates_checkbox)
+
+        # Create Save button
+        save_button = QPushButton('Save')
+        save_button.clicked.connect(lambda: self.save_settings(discord_rcp_checkbox.isChecked(), check_updates_checkbox.isChecked()))
+        layout.addWidget(save_button)
+
+        update_button = QPushButton('Check for updates')
+        update_button.clicked.connect(self.check_for_update)
+        layout.addWidget(update_button)
+
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def save_settings(self, is_rcp_enabled, check_updates_on_start):
+        config_path = "config.json"
+        updated_config = {
+            "IsRCPenabled": is_rcp_enabled,
+            "CheckUpdate": check_updates_on_start
+        }
+
+        # Update config values
+        self.config.update(updated_config)
+
+        # Save updated config to file
+        with open(config_path, "w") as config_file:
+            json.dump(self.config, config_file, indent=4)
+
+        QMessageBox.information(self, "Settings Saved", "Settings saved successfully!")
+
 
     def populate_installed_versions(self):
         # Run the command and get the output
@@ -495,6 +583,31 @@ class PicomcVersionSelector(QWidget):
             logging.error(error_message)
 
 
+    def check_for_update_start(self):
+        try:
+            with open("version.json") as f:
+                local_version_info = json.load(f)
+                local_version = local_version_info.get("version")
+                logging.info(f"Local version: {local_version}")
+                if local_version:
+                    remote_version_info = self.fetch_remote_version()
+                    remote_version = remote_version_info.get("version")
+                    logging.info(f"Remote version: {remote_version}")
+                    if remote_version and remote_version != local_version:
+                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                        if update_dialog == QMessageBox.Yes:
+                            # Download and apply the update
+                            self.download_update(remote_version_info)
+                    else:
+                        print("Up to Date", "You already have the latest version!")
+                else:
+                    logging.error("Failed to read local version information.")
+                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
+        except Exception as e:
+            logging.error("Error checking for updates: %s", str(e))
+            QMessageBox.critical(self, "Error", "Failed to check for updates.")
+
     def check_for_update(self):
         try:
             with open("version.json") as f:
@@ -563,6 +676,30 @@ class PicomcVersionSelector(QWidget):
         except Exception as e:
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
+
+
+    def start_discord_rcp(self):
+        client_id = '1236906342086606848'  # Replace with your Discord application client ID
+        presence = Presence(client_id)
+        
+        try:
+            presence.connect()
+
+            presence.update(
+                state="In the menu",
+                details="",
+                large_image="launcher_icon",  # Replace with your image key for the launcher image
+                large_text="PicoDulce Launcher",  # Replace with the text for the launcher image
+                start=time.time()
+            )
+
+            # Keep the script running to maintain the presence
+            while True:
+                time.sleep(15)  # Update presence every 15 seconds
+        except Exception as e:
+            logging.error("Failed to start Discord RCP: %s", str(e))
+
+
 
 
 if __name__ == '__main__':

@@ -1,2 +1,4 @@
 picomc
 PyQt5
+shutil
+pypresence
