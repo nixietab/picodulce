@@ -116,7 +116,8 @@ class PicomcVersionSelector(QWidget):
         config_path = "config.json"
         default_config = {
             "IsRCPenabled": False,
-            "CheckUpdate": False
+            "CheckUpdate": False,
+            "LastPlayed": ""
         }
 
         # Check if config file exists
@@ -187,6 +188,16 @@ class PicomcVersionSelector(QWidget):
 
 
     def populate_installed_versions(self):
+        config_path = "config.json"
+        # Check if config file exists
+        if not os.path.exists(config_path):
+            logging.error("Config file not found.")
+            return
+
+        # Load config from file
+        with open(config_path, "r") as config_file:
+            self.config = json.load(config_file)
+
         # Run the command and get the output
         try:
             process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -204,9 +215,18 @@ class PicomcVersionSelector(QWidget):
         versions = output.splitlines()
         versions = [version.replace('[local]', ' ').strip() for version in versions]
 
+        # Get last played version from config
+        last_played = self.config.get("LastPlayed", "")
+
+        # If lastplayed is not empty and is in the versions list, move it to the top
+        if last_played and last_played in versions:
+            versions.remove(last_played)
+            versions.insert(0, last_played)
+
         # Populate installed versions combo box
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
+
 
     def open_marroc_script(self):
         try:
@@ -232,10 +252,20 @@ class PicomcVersionSelector(QWidget):
     def run_game(self, selected_instance):
         try:
             subprocess.run(['picomc', 'play', selected_instance], check=True)
+            # Update lastplayed field in config.json
+            self.update_last_played(selected_instance)
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e.stderr.decode()}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
+
+    def update_last_played(self, selected_instance):
+        config_path = "config.json"
+        self.config["LastPlayed"] = selected_instance
+        with open(config_path, "w") as config_file:
+            json.dump(self.config, config_file, indent=4)
+
+
 
     def open_version_menu(self):
         dialog = QDialog(self)
@@ -687,7 +717,7 @@ class PicomcVersionSelector(QWidget):
 
             presence.update(
                 state="In the menu",
-                details="",
+                details="best launcher to exist",
                 large_image="launcher_icon",  # Replace with your image key for the launcher image
                 large_text="PicoDulce Launcher",  # Replace with the text for the launcher image
                 start=time.time()
