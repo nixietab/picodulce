@@ -9,7 +9,7 @@ import json
 import os
 from pypresence import Presence
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
 
@@ -64,20 +64,15 @@ class PicomcVersionSelector(QWidget):
         self.play_button.setStyleSheet("background-color: #4bb679; color: white;")
         buttons_layout.addWidget(self.play_button)
 
-        # Create button to open version download menu
-        self.version_download_button = QPushButton('Download Version')
-        self.version_download_button.clicked.connect(self.open_version_menu)
-        buttons_layout.addWidget(self.version_download_button)
+        #Version Manager Button
+        self.open_menu_button = QPushButton('Version Manager')
+        self.open_menu_button.clicked.connect(self.open_mod_loader_and_version_menu)
+        buttons_layout.addWidget(self.open_menu_button)
 
         # Create button to manage accounts
         self.manage_accounts_button = QPushButton('Manage Accounts')
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
-
-        # Create button to install mod loader
-        self.install_mod_loader_button = QPushButton('Install Mod Loader')
-        self.install_mod_loader_button.clicked.connect(self.open_mod_loader_menu)
-        buttons_layout.addWidget(self.install_mod_loader_button)
 
         # Create a button for the marroc mod loader
         self.open_marroc_button = QPushButton('Marroc Mod Manager')
@@ -133,7 +128,6 @@ class PicomcVersionSelector(QWidget):
             self.config = json.load(config_file)
 
 
-
     def open_settings_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Settings')
@@ -187,6 +181,8 @@ class PicomcVersionSelector(QWidget):
             json.dump(self.config, config_file, indent=4)
 
         QMessageBox.information(self, "Settings Saved", "Settings saved successfully!")
+
+
 
 
     def populate_installed_versions(self):
@@ -252,9 +248,6 @@ class PicomcVersionSelector(QWidget):
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
 
-
-
-
     def open_marroc_script(self):
         try:
             # Replace 'path_to_marroc.py' with the actual path to marroc.py
@@ -262,8 +255,6 @@ class PicomcVersionSelector(QWidget):
         except FileNotFoundError:
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
-
-
 
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
@@ -292,88 +283,6 @@ class PicomcVersionSelector(QWidget):
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
-
-
-    def open_version_menu(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Download Version')
-        dialog.setFixedSize(300, 250)
-
-        # Create title label
-        title_label = QLabel('Download Version')
-        title_label.setFont(QFont("Arial", 14))
-
-        # Create checkboxes for different version types
-        release_checkbox = QCheckBox('Releases')
-        snapshot_checkbox = QCheckBox('Snapshots')
-        alpha_checkbox = QCheckBox('Alpha')
-        beta_checkbox = QCheckBox('Beta')
-
-        # Create dropdown menu for versions
-        version_combo = QComboBox()
-
-        def update_versions():
-            version_combo.clear()
-            options = []
-            if release_checkbox.isChecked():
-                options.append('--release')
-            if snapshot_checkbox.isChecked():
-                options.append('--snapshot')
-            if alpha_checkbox.isChecked():
-                options.append('--alpha')
-            if beta_checkbox.isChecked():
-                options.append('--beta')
-            if options:
-                try:
-                    process = subprocess.Popen(['picomc', 'version', 'list'] + options, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    output, error = process.communicate()
-                    if process.returncode != 0:
-                        raise subprocess.CalledProcessError(process.returncode, process.args, error)
-                except FileNotFoundError:
-                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-                    return
-                except subprocess.CalledProcessError as e:
-                    logging.error("Error: %s", e.stderr)
-                    return
-
-                # Parse the output and replace '[local]' with a space
-                versions = output.splitlines()
-                versions = [version.replace('[local]', ' ').strip() for version in versions]
-                version_combo.addItems(versions)
-
-        release_checkbox.clicked.connect(update_versions)
-        snapshot_checkbox.clicked.connect(update_versions)
-        alpha_checkbox.clicked.connect(update_versions)
-        beta_checkbox.clicked.connect(update_versions)
-
-        # Set layout
-        layout = QVBoxLayout()
-        layout.addWidget(title_label)
-        layout.addWidget(release_checkbox)
-        layout.addWidget(snapshot_checkbox)
-        layout.addWidget(alpha_checkbox)
-        layout.addWidget(beta_checkbox)
-        layout.addWidget(version_combo)
-
-        # Create download button
-        download_button = QPushButton('Download')
-        download_button.clicked.connect(lambda: self.prepare_version(dialog, version_combo.currentText()))
-
-        layout.addWidget(download_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-
-    def prepare_version(self, dialog, version):
-        dialog.close()
-        try:
-            subprocess.run(['picomc', 'version', 'prepare', version], check=True)
-            QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
-            self.populate_installed_versions()  # Refresh the installed versions list after downloading
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error preparing {version}: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
 
     def manage_accounts(self):
         dialog = QDialog(self)
@@ -548,98 +457,6 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.HighlightedText, Qt.white)
         return palette
 
-    def open_mod_loader_menu(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Mod Loader Installer')
-        dialog.setFixedSize(300, 200)
-
-        # Create title label
-        title_label = QLabel('Mod Loader Installer')
-        title_label.setFont(QFont("Arial", 14))
-
-        # Create checkboxes for mod loaders
-        forge_checkbox = QCheckBox('Forge')
-        fabric_checkbox = QCheckBox('Fabric')
-
-        # Create dropdown menu for versions
-        version_combo = QComboBox()
-
-        def update_versions():
-            version_combo.clear()
-            if forge_checkbox.isChecked():
-                self.populate_available_releases(version_combo, True, False)
-            elif fabric_checkbox.isChecked():
-                self.populate_available_releases(version_combo, False, True)
-
-        forge_checkbox.clicked.connect(update_versions)
-        fabric_checkbox.clicked.connect(update_versions)
-
-        # Set layout
-        layout = QVBoxLayout()
-        layout.addWidget(title_label)
-        layout.addWidget(forge_checkbox)
-        layout.addWidget(fabric_checkbox)
-        layout.addWidget(version_combo)
-
-        # Create install button
-        install_button = QPushButton('Install')
-        install_button.clicked.connect(lambda: self.install_mod_loader(dialog, version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
-        layout.addWidget(install_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-
-    def populate_available_releases(self, version_combo, install_forge, install_fabric):
-        try:
-            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
-        except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
-            return
-
-        if install_fabric:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
-        elif install_forge:
-            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
-        else:
-            releases = output.splitlines()
-
-        version_combo.clear()
-        version_combo.addItems(releases)
-
-    def install_mod_loader(self, dialog, version, install_forge, install_fabric):
-        if not install_forge and not install_fabric:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
-        mod_loader = None
-        if install_forge:
-            mod_loader = 'forge'
-        elif install_fabric:
-            mod_loader = 'fabric'
-
-        if not mod_loader:
-            QMessageBox.warning(dialog, "Select Mod Loader", "Please select at least one mod loader.")
-            return
-
-        try:
-            if mod_loader == 'forge':
-                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
-            elif mod_loader == 'fabric':
-                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
-            self.populate_installed_versions()  # Refresh the installed versions list after installation
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
-            logging.error(error_message)
-
-
     def check_for_update_start(self):
         try:
             with open("version.json") as f:
@@ -704,7 +521,6 @@ class PicomcVersionSelector(QWidget):
             logging.error("Error fetching remote version: %s", str(e))
             return None
 
-
     def download_update(self, version_info):
         try:
             update_folder = "update"
@@ -734,7 +550,6 @@ class PicomcVersionSelector(QWidget):
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
 
-
     def start_discord_rcp(self):
         client_id = '1236906342086606848'  # Replace with your Discord application client ID
         presence = Presence(client_id)
@@ -756,7 +571,186 @@ class PicomcVersionSelector(QWidget):
         except Exception as e:
             logging.error("Failed to start Discord RCP: %s", str(e))
 
+    def open_mod_loader_and_version_menu(self):
+        dialog = ModLoaderAndVersionMenu()
+        dialog.finished.connect(self.populate_installed_versions)
+        dialog.exec_()
 
+class ModLoaderAndVersionMenu(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Mod Loader and Version Menu")
+        self.setGeometry(100, 100, 400, 300)
+
+        main_layout = QVBoxLayout(self)
+
+        tab_widget = QTabWidget()
+        main_layout.addWidget(tab_widget)
+
+        # Create tabs
+        install_mod_tab = QWidget()
+        download_version_tab = QWidget()
+
+        tab_widget.addTab(download_version_tab, "Download Version")
+        tab_widget.addTab(install_mod_tab, "Install Mod Loader")
+
+        # Add content to "Install Mod Loader" tab
+        self.setup_install_mod_loader_tab(install_mod_tab)
+
+        # Add content to "Download Version" tab
+        self.setup_download_version_tab(download_version_tab)
+
+    def setup_install_mod_loader_tab(self, install_mod_tab):
+        layout = QVBoxLayout(install_mod_tab)
+
+        # Create title label
+        title_label = QLabel('Mod Loader Installer')
+        title_label.setFont(QFont("Arial", 14))
+        layout.addWidget(title_label)
+
+        # Create checkboxes for mod loaders
+        forge_checkbox = QCheckBox('Forge')
+        fabric_checkbox = QCheckBox('Fabric')
+        layout.addWidget(forge_checkbox)
+        layout.addWidget(fabric_checkbox)
+
+        # Create dropdown menu for versions
+        version_combo = QComboBox()
+        layout.addWidget(version_combo)
+
+        def update_versions():
+            version_combo.clear()
+            if forge_checkbox.isChecked():
+                self.populate_available_releases(version_combo, True, False)
+            elif fabric_checkbox.isChecked():
+                self.populate_available_releases(version_combo, False, True)
+
+        forge_checkbox.clicked.connect(update_versions)
+        fabric_checkbox.clicked.connect(update_versions)
+
+        # Create install button
+        install_button = QPushButton('Install')
+        install_button.clicked.connect(lambda: self.install_mod_loader(version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
+        layout.addWidget(install_button)
+
+    def setup_download_version_tab(self, download_version_tab):
+        layout = QVBoxLayout(download_version_tab)
+        
+        # Create title label
+        title_label = QLabel('Download Version')
+        title_label.setFont(QFont("Arial", 14))
+        layout.addWidget(title_label)
+
+        # Create checkboxes for different version types
+        release_checkbox = QCheckBox('Releases')
+        snapshot_checkbox = QCheckBox('Snapshots')
+        alpha_checkbox = QCheckBox('Alpha')
+        beta_checkbox = QCheckBox('Beta')
+        layout.addWidget(release_checkbox)
+        layout.addWidget(snapshot_checkbox)
+        layout.addWidget(alpha_checkbox)
+        layout.addWidget(beta_checkbox)
+
+        # Create dropdown menu for versions
+        version_combo = QComboBox()
+        layout.addWidget(version_combo)
+
+        def update_versions():
+            version_combo.clear()
+            options = []
+            if release_checkbox.isChecked():
+                options.append('--release')
+            if snapshot_checkbox.isChecked():
+                options.append('--snapshot')
+            if alpha_checkbox.isChecked():
+                options.append('--alpha')
+            if beta_checkbox.isChecked():
+                options.append('--beta')
+            if options:
+                try:
+                    process = subprocess.Popen(['picomc', 'version', 'list'] + options, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    output, error = process.communicate()
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, process.args, error)
+                except FileNotFoundError:
+                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                    return
+                except subprocess.CalledProcessError as e:
+                    logging.error("Error: %s", e.stderr)
+                    return
+
+                # Parse the output and replace '[local]' with a space
+                versions = output.splitlines()
+                versions = [version.replace('[local]', ' ').strip() for version in versions]
+                version_combo.addItems(versions)
+
+        release_checkbox.clicked.connect(update_versions)
+        snapshot_checkbox.clicked.connect(update_versions)
+        alpha_checkbox.clicked.connect(update_versions)
+        beta_checkbox.clicked.connect(update_versions)
+
+        # Create download button
+        download_button = QPushButton('Download')
+        download_button.clicked.connect(lambda: self.download_version(version_combo.currentText()))
+        layout.addWidget(download_button)
+
+    def download_version(self, version):  # <- Define download_version function
+        try:
+            subprocess.run(['picomc', 'version', 'prepare', version], check=True)
+            QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error preparing {version}: {e.stderr.decode()}"
+            QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
+
+    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+        try:
+            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
+        except subprocess.CalledProcessError as e:
+            logging.error("Error: %s", e.stderr)
+            return
+
+        if install_fabric:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
+        elif install_forge:
+            releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
+        else:
+            releases = output.splitlines()
+
+        version_combo.clear()
+        version_combo.addItems(releases)
+
+    def install_mod_loader(self, version, install_forge, install_fabric):
+        if not install_forge and not install_fabric:
+            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        mod_loader = None
+        if install_forge:
+            mod_loader = 'forge'
+        elif install_fabric:
+            mod_loader = 'fabric'
+
+        if not mod_loader:
+            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            return
+
+        try:
+            if mod_loader == 'forge':
+                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
+            elif mod_loader == 'fabric':
+                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
+            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
+            QMessageBox.critical(self, "Error", error_message)
+            logging.error(error_message)
 
 
 if __name__ == '__main__':
@@ -764,4 +758,3 @@ if __name__ == '__main__':
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
-    
