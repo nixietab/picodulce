@@ -47,6 +47,10 @@ class PicomcVersionSelector(QWidget):
             palette = self.create_obsidian_palette()
         elif palette_type == "Redstone":
             palette = self.create_redstone_palette()
+        elif palette_type == "Alpha":
+            palette = self.create_alpha_palette()
+        elif palette_type == "Strawberry":
+            palette = self.create_strawberry_palette()
         else:
             # Default to dark palette if the type is not specified or invalid
             palette = self.create_dark_palette()
@@ -171,7 +175,7 @@ class PicomcVersionSelector(QWidget):
         layout.addWidget(theme_label)
 
         theme_combobox = QComboBox()
-        themes = ['Dark', 'Obsidian', 'Redstone']  # Replace with your actual themes
+        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry']  # Replace with your actual themes
         theme_combobox.addItems(themes)
         current_theme_index = themes.index(self.config.get("Palette", "Default Theme"))
         theme_combobox.setCurrentIndex(current_theme_index)
@@ -481,19 +485,19 @@ class PicomcVersionSelector(QWidget):
 
     def create_obsidian_palette(self):
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        palette.setColor(QPalette.WindowText, QColor(235, 235, 235))
-        palette.setColor(QPalette.Base, QColor(35, 35, 35))
-        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        palette.setColor(QPalette.ToolTipBase, QColor(235, 235, 235))
-        palette.setColor(QPalette.ToolTipText, QColor(235, 235, 235))
-        palette.setColor(QPalette.Text, QColor(235, 235, 235))
-        palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        palette.setColor(QPalette.ButtonText, QColor(235, 235, 235))
-        palette.setColor(QPalette.BrightText, QColor(255, 40, 40))
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Window, QColor("#1c1c1c"))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor("#1c1c1c"))
+        palette.setColor(QPalette.AlternateBase, QColor("#1c1c1c"))
+        palette.setColor(QPalette.ToolTipBase, QColor("#1c1c1c"))
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor("#1c1c1c"))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor("#6a0dad"))
         palette.setColor(QPalette.Highlight, QColor("#6200EE"))
-        palette.setColor(QPalette.HighlightedText, QColor(235, 235, 235))
+        palette.setColor(QPalette.HighlightedText, Qt.white)
         return palette
 
     def create_redstone_palette(self):
@@ -514,6 +518,39 @@ class PicomcVersionSelector(QWidget):
         return palette
 
 
+    def create_alpha_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#31363b"))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor("#31363b"))
+        palette.setColor(QPalette.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor("#31363b"))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.HighlightedText, Qt.white)
+        return palette
+
+    def create_strawberry_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#fce8e6"))
+        palette.setColor(QPalette.WindowText, Qt.black)
+        palette.setColor(QPalette.Base, QColor("#f8d7d5"))
+        palette.setColor(QPalette.AlternateBase, QColor("#fce8e6"))
+        palette.setColor(QPalette.ToolTipBase, QColor("#f8d7d5"))
+        palette.setColor(QPalette.ToolTipText, Qt.black)
+        palette.setColor(QPalette.Text, Qt.black)
+        palette.setColor(QPalette.Button, QColor("#fce8e6"))
+        palette.setColor(QPalette.ButtonText, Qt.black)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor("#ff4d4d"))
+        palette.setColor(QPalette.Highlight, QColor("#ff8080"))
+        palette.setColor(QPalette.HighlightedText, Qt.black)
+        return palette
 
 
     def check_for_update_start(self):
