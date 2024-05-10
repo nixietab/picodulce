@@ -15,6 +15,9 @@ from PyQt5.QtCore import Qt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+
+
 class PicomcVersionSelector(QWidget):
     def __init__(self):
         super().__init__()
@@ -36,8 +39,18 @@ class PicomcVersionSelector(QWidget):
 
         # Set application style and palette
         app_style = QApplication.setStyle("Fusion")
-        dark_palette = self.create_dark_palette()
-        QApplication.instance().setPalette(dark_palette)
+        self.check_config_file()
+        palette_type = self.config.get("Palette", "Dark")
+        if palette_type == "Dark":
+            palette = self.create_dark_palette()
+        elif palette_type == "Obsidian":
+            palette = self.create_obsidian_palette()
+        elif palette_type == "Redstone":
+            palette = self.create_redstone_palette()
+        else:
+            # Default to dark palette if the type is not specified or invalid
+            palette = self.create_dark_palette()
+        QApplication.instance().setPalette(palette)
 
         # Set window border color to dark mode on Windows
         if sys.platform == 'win32':
@@ -113,7 +126,8 @@ class PicomcVersionSelector(QWidget):
         default_config = {
             "IsRCPenabled": False,
             "CheckUpdate": False,
-            "LastPlayed": ""
+            "LastPlayed": "",
+            "Palette": "Dark"
         }
 
         # Check if config file exists
@@ -139,12 +153,10 @@ class PicomcVersionSelector(QWidget):
         title_label.setFont(QFont("Arial", 14))
 
         # Add settings components here...
-
         layout = QVBoxLayout()
         layout.addWidget(title_label)
 
         # Create Update button
-
         discord_rcp_checkbox = QCheckBox('Discord RCP')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
         check_updates_checkbox = QCheckBox('Check Updates on Start')
@@ -154,24 +166,35 @@ class PicomcVersionSelector(QWidget):
         layout.addWidget(discord_rcp_checkbox)
         layout.addWidget(check_updates_checkbox)
 
+        # Create theme dropdown
+        theme_label = QLabel('Theme:')
+        layout.addWidget(theme_label)
+
+        theme_combobox = QComboBox()
+        themes = ['Dark', 'Obsidian', 'Redstone']  # Replace with your actual themes
+        theme_combobox.addItems(themes)
+        current_theme_index = themes.index(self.config.get("Palette", "Default Theme"))
+        theme_combobox.setCurrentIndex(current_theme_index)
+        layout.addWidget(theme_combobox)
+
         # Create Save button
         save_button = QPushButton('Save')
-        save_button.clicked.connect(lambda: self.save_settings(discord_rcp_checkbox.isChecked(), check_updates_checkbox.isChecked()))
+        save_button.clicked.connect(lambda: self.save_settings(discord_rcp_checkbox.isChecked(), check_updates_checkbox.isChecked(), theme_combobox.currentText()))
         layout.addWidget(save_button)
 
         update_button = QPushButton('Check for updates')
         update_button.clicked.connect(self.check_for_update)
         layout.addWidget(update_button)
 
-
         dialog.setLayout(layout)
         dialog.exec_()
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start):
+    def save_settings(self, is_rcp_enabled, check_updates_on_start, selected_theme):
         config_path = "config.json"
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
-            "CheckUpdate": check_updates_on_start
+            "CheckUpdate": check_updates_on_start,
+            "Palette": selected_theme
         }
 
         # Update config values
@@ -181,10 +204,7 @@ class PicomcVersionSelector(QWidget):
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
-        QMessageBox.information(self, "Settings Saved", "Settings saved successfully!")
-
-
-
+        QMessageBox.information(self, "Settings Saved", "Settings saved successfully!\n\n to them to be applyed you need to restart the launcher")
 
     def populate_installed_versions(self):
         config_path = "config.json"
@@ -458,6 +478,42 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.Highlight, QColor(75 , 182, 121))
         palette.setColor(QPalette.HighlightedText, Qt.white)
         return palette
+
+    def create_obsidian_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, QColor(235, 235, 235))
+        palette.setColor(QPalette.Base, QColor(35, 35, 35))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.ToolTipBase, QColor(235, 235, 235))
+        palette.setColor(QPalette.ToolTipText, QColor(235, 235, 235))
+        palette.setColor(QPalette.Text, QColor(235, 235, 235))
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, QColor(235, 235, 235))
+        palette.setColor(QPalette.BrightText, QColor(255, 40, 40))
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor("#6200EE"))
+        palette.setColor(QPalette.HighlightedText, QColor(235, 235, 235))
+        return palette
+
+    def create_redstone_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(255 , 0, 0))
+        palette.setColor(QPalette.HighlightedText, Qt.white)
+        return palette
+
+
 
 
     def check_for_update_start(self):
