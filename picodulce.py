@@ -61,7 +61,8 @@ class PicomcVersionSelector(QWidget):
         self.play_button = QPushButton('Play')
         self.play_button.setFocusPolicy(Qt.NoFocus)  # Set focus policy to prevent highlighting
         self.play_button.clicked.connect(self.play_instance)
-        self.play_button.setStyleSheet("background-color: #4bb679; color: white;")
+        highlight_color = self.palette().color(QPalette.Highlight)
+        self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
         buttons_layout.addWidget(self.play_button)
 
         #Version Manager Button
@@ -436,8 +437,9 @@ class PicomcVersionSelector(QWidget):
                     QMessageBox.critical(self, "Error", error_message)
 
     def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple GUI for the picomc project."
+        about_message = "PicoDulce Launcher\n\nA simple Minecraft launcher built using Qt, based on the picomc project.\n\nCredits:\nNixietab: Code and UI design\nWabaano: Graphic design"
         QMessageBox.about(self, "About", about_message)
+
 
 
     def create_dark_palette(self):
@@ -453,9 +455,10 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.ButtonText, Qt.white)
         palette.setColor(QPalette.BrightText, Qt.red)
         palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(75 , 182, 121))
         palette.setColor(QPalette.HighlightedText, Qt.white)
         return palette
+
 
     def check_for_update_start(self):
         try:
