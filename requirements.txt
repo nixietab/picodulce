@@ -1,4 +1,4 @@
 picomc
 PyQt5
-shutil
+requests
 pypresence
