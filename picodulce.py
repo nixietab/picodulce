@@ -51,7 +51,11 @@ class PicomcVersionSelector(QWidget):
             palette = self.create_alpha_palette()
         elif palette_type == "Strawberry":
             palette = self.create_strawberry_palette()
+        elif palette_type == "Native":
+            palette = self.create_native_palette()
+
         else:
+
             # Default to dark palette if the type is not specified or invalid
             palette = self.create_dark_palette()
         QApplication.instance().setPalette(palette)
@@ -175,7 +179,7 @@ class PicomcVersionSelector(QWidget):
         layout.addWidget(theme_label)
 
         theme_combobox = QComboBox()
-        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry']  # Replace with your actual themes
+        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry', "Native"]  # Replace with your actual themes
         theme_combobox.addItems(themes)
         current_theme_index = themes.index(self.config.get("Palette", "Default Theme"))
         theme_combobox.setCurrentIndex(current_theme_index)
@@ -551,6 +555,11 @@ class PicomcVersionSelector(QWidget):
         palette.setColor(QPalette.Highlight, QColor("#ff8080"))
         palette.setColor(QPalette.HighlightedText, Qt.black)
         return palette
+
+    def create_native_palette(self):
+        palette = QPalette()
+        return palette
+
 
 
     def check_for_update_start(self):
