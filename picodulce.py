@@ -9,7 +9,7 @@ import json
 import os
 from pypresence import Presence
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
 from PyQt5.QtCore import Qt
 
@@ -53,9 +53,7 @@ class PicomcVersionSelector(QWidget):
             palette = self.create_strawberry_palette()
         elif palette_type == "Native":
             palette = self.create_native_palette()
-
         else:
-
             # Default to dark palette if the type is not specified or invalid
             palette = self.create_dark_palette()
         QApplication.instance().setPalette(palette)
@@ -86,7 +84,7 @@ class PicomcVersionSelector(QWidget):
         self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
         buttons_layout.addWidget(self.play_button)
 
-        #Version Manager Button
+        # Version Manager Button
         self.open_menu_button = QPushButton('Version Manager')
         self.open_menu_button.clicked.connect(self.open_mod_loader_and_version_menu)
         buttons_layout.addWidget(self.open_menu_button)
@@ -101,24 +99,24 @@ class PicomcVersionSelector(QWidget):
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
-
-        # Inside the init_ui method of PicomcVersionSelector class
-
-        # Create button to open settings
+        # Create grid layout for Settings and About buttons
+        grid_layout = QGridLayout()
         self.settings_button = QPushButton('Settings')
         self.settings_button.clicked.connect(self.open_settings_dialog)
-        buttons_layout.addWidget(self.settings_button)
-
-        # Create About button
         self.about_button = QPushButton('About')
         self.about_button.clicked.connect(self.show_about_dialog)
-        buttons_layout.addWidget(self.about_button)
+        
+        grid_layout.addWidget(self.settings_button, 0, 0)
+        grid_layout.addWidget(self.about_button, 0, 1)
+
+        # Add the grid layout to buttons layout
+        buttons_layout.addLayout(grid_layout)
 
         # Set buttons layout alignment and spacing
         buttons_layout.setAlignment(Qt.AlignTop)
         buttons_layout.setSpacing(10)
 
-        # Set layout
+        # Set main layout
         main_layout = QVBoxLayout()
         main_layout.addWidget(title_label, alignment=Qt.AlignCenter)
         main_layout.addWidget(installed_versions_label)
@@ -213,6 +211,8 @@ class PicomcVersionSelector(QWidget):
             json.dump(self.config, config_file, indent=4)
 
         QMessageBox.information(self, "Settings Saved", "Settings saved successfully!\n\n to them to be applyed you need to restart the launcher")
+        self.__init__()
+
 
     def populate_installed_versions(self):
         config_path = "config.json"
@@ -667,9 +667,9 @@ class PicomcVersionSelector(QWidget):
                 details="best launcher to exist",
                 large_image="launcher_icon",  # Replace with your image key for the launcher image
                 large_text="PicoDulce Launcher",  # Replace with the text for the launcher image
-                start=time.time()
+                start=time.time(),
+                buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}]  # Add your button here
             )
-
             # Keep the script running to maintain the presence
             while True:
                 time.sleep(15)  # Update presence every 15 seconds
