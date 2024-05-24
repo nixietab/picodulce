@@ -15,9 +15,6 @@ from PyQt5.QtCore import Qt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
-
-
 class PicomcVersionSelector(QWidget):
     def __init__(self):
         super().__init__()
@@ -57,11 +54,7 @@ class PicomcVersionSelector(QWidget):
             # Default to dark palette if the type is not specified or invalid
             palette = self.create_dark_palette()
         QApplication.instance().setPalette(palette)
-
-        # Set window border color to dark mode on Windows
-        if sys.platform == 'win32':
-            self.setStyleSheet("QMainWindow { border: 2px solid rgb(53, 53, 53); }")
-
+        
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
@@ -288,6 +281,17 @@ class PicomcVersionSelector(QWidget):
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
             QMessageBox.warning(self, "No Version Available", "Please download a version first.")
+            return
+
+        # Check if there are any accounts
+        account_list_output = subprocess.check_output(["picomc", "account", "list"]).decode("utf-8").strip()
+        if not account_list_output:
+            QMessageBox.warning(self, "No Account Available", "Please create an account first.")
+            return
+
+        # Check if the selected account has a '*' (indicating it's the selected one)
+        if '*' not in account_list_output:
+            QMessageBox.warning(self, "No Account Selected", "Please select an account.")
             return
 
         selected_instance = self.installed_version_combo.currentText()
