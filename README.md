@@ -7,7 +7,7 @@ Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serv
 ## Key Features
 
 - **Version Management**: Picodulce is designed to download and launch all available game versions, ensuring users have easy access to the latest updates as well as older versions.
-- **Offline and Online Support**: Whether you're connected to the internet or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
+- **Offline and Online Support**: Whether you're connected to Microsoft or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
 - **Integrated Mod Manager**: The latest update includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods.
 
 
