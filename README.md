@@ -1,16 +1,16 @@
+# Picodulce
 
-# picodulce
+Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the picomc project, providing users with a seamless experience in managing and launching game versions.
 
-a launcher for block game made in Qt5 and a GUI for the [picomc proyect](https://github.com/sammko/picomc).
+![image](https://github.com/nixietab/picodulce/assets/75538775/808ac50b-96e6-4bc1-b7fd-a14f9ce5f064)
 
-it should download all the versions and start them as well. it works offline and online
+## Key Features
 
-now added the [Marroc mod manager!!](https://github.com/nixietab/marroc)
-
-![image](https://github.com/nixietab/picodulce/assets/75538775/86a9aeb7-9938-40a4-8bb9-afbf6fa00853)
+- **Version Management**: Picodulce is designed to download and launch all available game versions, ensuring users have easy access to the latest updates as well as older versions.
+- **Offline and Online Support**: Whether you're connected to the internet or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
+- **Integrated Mod Manager**: The latest update includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods.
 
 
 
 ### About the name
-
-pico dulce is the name of a well known argentinean candy and i think is apropiate say that this is a really "sweetened" way of using picomc
+The name "Picodulce" comes from a popular Argentine candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
