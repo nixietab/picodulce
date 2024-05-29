@@ -10,6 +10,13 @@ from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 
 CONFIG_FILE = "config.json"
 
+
+
+
+
+
+
+
 class IconLoader(QObject, threading.Thread):
     icon_loaded = pyqtSignal(QPixmap)
 
@@ -37,25 +44,7 @@ class ModrinthSearchApp(QWidget):
 
         self.setWindowTitle("Marroc Mod Manager")
         self.setGeometry(100, 100, 500, 400)
-
-        # Set Fusion style
-        app.setStyle("Fusion")
-        # Set dark color palette
-        dark_palette = QPalette()
-        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.WindowText, Qt.white)
-        dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
-        dark_palette.setColor(QPalette.Text, Qt.white)
-        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ButtonText, Qt.white)
-        dark_palette.setColor(QPalette.BrightText, Qt.red)
-        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.HighlightedText, Qt.white)
-        self.setPalette(dark_palette)
+        self.ensure_directories_exist()
 
         layout = QVBoxLayout()
 
@@ -72,6 +61,12 @@ class ModrinthSearchApp(QWidget):
         layout.addWidget(tab_widget)
 
         self.setLayout(layout)
+
+    def ensure_directories_exist(self):
+        directories = ["marroc/mods", "marroc/resourcepacks"]
+        for directory in directories:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
 
     def init_search_tab(self):
         layout = QVBoxLayout()

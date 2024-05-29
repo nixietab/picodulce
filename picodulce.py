@@ -9,9 +9,9 @@ import json
 import os
 from pypresence import Presence
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -278,25 +278,32 @@ class PicomcVersionSelector(QWidget):
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
 
+
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
             QMessageBox.warning(self, "No Version Available", "Please download a version first.")
             return
 
         # Check if there are any accounts
-        account_list_output = subprocess.check_output(["picomc", "account", "list"]).decode("utf-8").strip()
-        if not account_list_output:
-            QMessageBox.warning(self, "No Account Available", "Please create an account first.")
-            return
+        try:
+            account_list_output = subprocess.check_output(["picomc", "account", "list"]).decode("utf-8").strip()
+            if not account_list_output:
+                QMessageBox.warning(self, "No Account Available", "Please create an account first.")
+                return
 
-        # Check if the selected account has a '*' (indicating it's the selected one)
-        if '*' not in account_list_output:
-            QMessageBox.warning(self, "No Account Selected", "Please select an account.")
+            # Check if the selected account has a '*' (indicating it's the selected one)
+            if '*' not in account_list_output:
+                QMessageBox.warning(self, "No Account Selected", "Please select an account.")
+                return
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error fetching accounts: {e.stderr.decode()}"
+            logging.error(error_message)
+            QMessageBox.critical(self, "Error", error_message)
             return
 
         selected_instance = self.installed_version_combo.currentText()
+        logging.info(f"Selected instance: {selected_instance}")
 
-        # Create a separate thread to run the game process
         play_thread = threading.Thread(target=self.run_game, args=(selected_instance,))
         play_thread.start()
 
@@ -309,6 +316,7 @@ class PicomcVersionSelector(QWidget):
             error_message = f"Error playing {selected_instance}: {e.stderr.decode()}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
+
 
     def update_last_played(self, selected_instance):
         config_path = "config.json"
@@ -744,7 +752,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def setup_download_version_tab(self, download_version_tab):
         layout = QVBoxLayout(download_version_tab)
-        
+
         # Create title label
         title_label = QLabel('Download Version')
         title_label.setFont(QFont("Arial", 14))
@@ -792,6 +800,8 @@ class ModLoaderAndVersionMenu(QDialog):
                 versions = output.splitlines()
                 versions = [version.replace('[local]', ' ').strip() for version in versions]
                 version_combo.addItems(versions)
+            # Update the download button state whenever versions are updated
+            update_download_button_state()
 
         release_checkbox.clicked.connect(update_versions)
         snapshot_checkbox.clicked.connect(update_versions)
@@ -800,17 +810,54 @@ class ModLoaderAndVersionMenu(QDialog):
 
         # Create download button
         download_button = QPushButton('Download')
+        download_button.setEnabled(False)  # Initially disabled
         download_button.clicked.connect(lambda: self.download_version(version_combo.currentText()))
         layout.addWidget(download_button)
 
-    def download_version(self, version):  # <- Define download_version function
-        try:
-            subprocess.run(['picomc', 'version', 'prepare', version], check=True)
-            QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error preparing {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
-            logging.error(error_message)
+        # Define a function to update the download button state
+        def update_download_button_state():
+            download_button.setEnabled(version_combo.currentIndex() != -1)
+
+        # Connect the combo box signal to the update function
+        version_combo.currentIndexChanged.connect(update_download_button_state)
+
+    def show_popup(self):
+        self.popup = QDialog(self)
+        self.popup.setWindowTitle("Installing Version")
+        layout = QVBoxLayout(self.popup)
+
+        label = QLabel("The version is being installed...")
+        layout.addWidget(label)
+
+        movie = QMovie("drums.gif")
+        gif_label = QLabel()
+        gif_label.setMovie(movie)
+        layout.addWidget(gif_label)
+
+        movie.start()
+        self.popup.setGeometry(200, 200, 300, 200)
+        self.popup.setWindowModality(Qt.ApplicationModal)
+        self.popup.show()
+
+    def download_version(self, version):
+        # Show the popup in the main thread
+        self.show_popup()
+
+        def download():
+            try:
+                subprocess.run(['picomc', 'version', 'prepare', version], check=True)
+                self.popup.close()
+                QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
+            except subprocess.CalledProcessError as e:
+                self.popup.close()
+                error_message = f"Error preparing {version}: {e.stderr.decode()}"
+                QMessageBox.critical(self, "Error", error_message)
+                logging.error(error_message)
+
+        # Create and start the download thread
+        thread = threading.Thread(target=download)
+        thread.start()
+
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
         try:
@@ -864,6 +911,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app_icon = QIcon('launcher_icon.ico') 
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
