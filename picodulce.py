@@ -11,7 +11,7 @@ from pypresence import Presence
 import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap
-from PyQt5.QtCore import Qt, QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -693,6 +693,21 @@ class PicomcVersionSelector(QWidget):
         dialog.finished.connect(self.populate_installed_versions)
         dialog.exec_()
 
+class DownloadThread(QThread):
+    completed = pyqtSignal(bool, str)
+
+    def __init__(self, version):
+        super().__init__()
+        self.version = version
+
+    def run(self):
+        try:
+            subprocess.run(['picomc', 'version', 'prepare', self.version], check=True)
+            self.completed.emit(True, f"Version {self.version} prepared successfully!")
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error preparing {self.version}: {e.stderr.decode()}"
+            self.completed.emit(False, error_message)
+
 class ModLoaderAndVersionMenu(QDialog):
     def __init__(self):
         super().__init__()
@@ -726,28 +741,32 @@ class ModLoaderAndVersionMenu(QDialog):
         layout.addWidget(title_label)
 
         # Create checkboxes for mod loaders
-        forge_checkbox = QCheckBox('Forge')
-        fabric_checkbox = QCheckBox('Fabric')
-        layout.addWidget(forge_checkbox)
-        layout.addWidget(fabric_checkbox)
+        self.forge_checkbox = QCheckBox('Forge')
+        self.fabric_checkbox = QCheckBox('Fabric')
+        layout.addWidget(self.forge_checkbox)
+        layout.addWidget(self.fabric_checkbox)
 
         # Create dropdown menu for versions
-        version_combo = QComboBox()
-        layout.addWidget(version_combo)
+        self.version_combo_mod = QComboBox()
+        layout.addWidget(self.version_combo_mod)
 
         def update_versions():
-            version_combo.clear()
-            if forge_checkbox.isChecked():
-                self.populate_available_releases(version_combo, True, False)
-            elif fabric_checkbox.isChecked():
-                self.populate_available_releases(version_combo, False, True)
+            self.version_combo_mod.clear()
+            if self.forge_checkbox.isChecked():
+                self.populate_available_releases(self.version_combo_mod, True, False)
+            elif self.fabric_checkbox.isChecked():
+                self.populate_available_releases(self.version_combo_mod, False, True)
 
-        forge_checkbox.clicked.connect(update_versions)
-        fabric_checkbox.clicked.connect(update_versions)
+        self.forge_checkbox.clicked.connect(update_versions)
+        self.fabric_checkbox.clicked.connect(update_versions)
 
         # Create install button
         install_button = QPushButton('Install')
-        install_button.clicked.connect(lambda: self.install_mod_loader(version_combo.currentText(), forge_checkbox.isChecked(), fabric_checkbox.isChecked()))
+        install_button.clicked.connect(lambda: self.install_mod_loader(
+            self.version_combo_mod.currentText(), 
+            self.forge_checkbox.isChecked(), 
+            self.fabric_checkbox.isChecked()
+        ))
         layout.addWidget(install_button)
 
     def setup_download_version_tab(self, download_version_tab):
@@ -759,29 +778,29 @@ class ModLoaderAndVersionMenu(QDialog):
         layout.addWidget(title_label)
 
         # Create checkboxes for different version types
-        release_checkbox = QCheckBox('Releases')
-        snapshot_checkbox = QCheckBox('Snapshots')
-        alpha_checkbox = QCheckBox('Alpha')
-        beta_checkbox = QCheckBox('Beta')
-        layout.addWidget(release_checkbox)
-        layout.addWidget(snapshot_checkbox)
-        layout.addWidget(alpha_checkbox)
-        layout.addWidget(beta_checkbox)
+        self.release_checkbox = QCheckBox('Releases')
+        self.snapshot_checkbox = QCheckBox('Snapshots')
+        self.alpha_checkbox = QCheckBox('Alpha')
+        self.beta_checkbox = QCheckBox('Beta')
+        layout.addWidget(self.release_checkbox)
+        layout.addWidget(self.snapshot_checkbox)
+        layout.addWidget(self.alpha_checkbox)
+        layout.addWidget(self.beta_checkbox)
 
         # Create dropdown menu for versions
-        version_combo = QComboBox()
-        layout.addWidget(version_combo)
+        self.version_combo = QComboBox()
+        layout.addWidget(self.version_combo)
 
         def update_versions():
-            version_combo.clear()
+            self.version_combo.clear()
             options = []
-            if release_checkbox.isChecked():
+            if self.release_checkbox.isChecked():
                 options.append('--release')
-            if snapshot_checkbox.isChecked():
+            if self.snapshot_checkbox.isChecked():
                 options.append('--snapshot')
-            if alpha_checkbox.isChecked():
+            if self.alpha_checkbox.isChecked():
                 options.append('--alpha')
-            if beta_checkbox.isChecked():
+            if self.beta_checkbox.isChecked():
                 options.append('--beta')
             if options:
                 try:
@@ -799,27 +818,26 @@ class ModLoaderAndVersionMenu(QDialog):
                 # Parse the output and replace '[local]' with a space
                 versions = output.splitlines()
                 versions = [version.replace('[local]', ' ').strip() for version in versions]
-                version_combo.addItems(versions)
+                self.version_combo.addItems(versions)
             # Update the download button state whenever versions are updated
-            update_download_button_state()
+            self.update_download_button_state()
 
-        release_checkbox.clicked.connect(update_versions)
-        snapshot_checkbox.clicked.connect(update_versions)
-        alpha_checkbox.clicked.connect(update_versions)
-        beta_checkbox.clicked.connect(update_versions)
+        self.release_checkbox.clicked.connect(update_versions)
+        self.snapshot_checkbox.clicked.connect(update_versions)
+        self.alpha_checkbox.clicked.connect(update_versions)
+        self.beta_checkbox.clicked.connect(update_versions)
 
         # Create download button
-        download_button = QPushButton('Download')
-        download_button.setEnabled(False)  # Initially disabled
-        download_button.clicked.connect(lambda: self.download_version(version_combo.currentText()))
-        layout.addWidget(download_button)
-
-        # Define a function to update the download button state
-        def update_download_button_state():
-            download_button.setEnabled(version_combo.currentIndex() != -1)
+        self.download_button = QPushButton('Download')
+        self.download_button.setEnabled(False)  # Initially disabled
+        self.download_button.clicked.connect(lambda: self.download_version(self.version_combo.currentText()))
+        layout.addWidget(self.download_button)
 
         # Connect the combo box signal to the update function
-        version_combo.currentIndexChanged.connect(update_download_button_state)
+        self.version_combo.currentIndexChanged.connect(self.update_download_button_state)
+
+    def update_download_button_state(self):
+        self.download_button.setEnabled(self.version_combo.currentIndex() != -1)
 
     def show_popup(self):
         self.popup = QDialog(self)
@@ -843,21 +861,17 @@ class ModLoaderAndVersionMenu(QDialog):
         # Show the popup in the main thread
         self.show_popup()
 
-        def download():
-            try:
-                subprocess.run(['picomc', 'version', 'prepare', version], check=True)
-                self.popup.close()
-                QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
-            except subprocess.CalledProcessError as e:
-                self.popup.close()
-                error_message = f"Error preparing {version}: {e.stderr.decode()}"
-                QMessageBox.critical(self, "Error", error_message)
-                logging.error(error_message)
+        self.download_thread = DownloadThread(version)
+        self.download_thread.completed.connect(self.on_download_completed)
+        self.download_thread.start()
 
-        # Create and start the download thread
-        thread = threading.Thread(target=download)
-        thread.start()
-
+    def on_download_completed(self, success, message):
+        self.popup.close()
+        if success:
+            QMessageBox.information(self, "Success", message)
+        else:
+            QMessageBox.critical(self, "Error", message)
+        logging.error(message)
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
         try:
@@ -907,6 +921,7 @@ class ModLoaderAndVersionMenu(QDialog):
             error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
+
 
 
 if __name__ == '__main__':
