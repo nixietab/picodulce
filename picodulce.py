@@ -324,73 +324,111 @@ class PicomcVersionSelector(QWidget):
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
-
     def manage_accounts(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Manage Accounts')
         dialog.setFixedSize(400, 250)
 
-        # Create title label
         title_label = QLabel('Manage Accounts')
         title_label.setFont(QFont("Arial", 14))
 
-        # Create dropdown menu for accounts
+        create_account_button = QPushButton('Create Account')
+        create_account_button.clicked.connect(self.open_create_account_dialog)
+
+        select_account_button = QPushButton('Select Account')
+        select_account_button.clicked.connect(self.open_select_account_dialog)
+
+        authenticate_account_button = QPushButton('Authenticate Account')
+        authenticate_account_button.clicked.connect(self.open_authenticate_account_dialog)
+
+        remove_account_button = QPushButton('Remove Account')
+        remove_account_button.clicked.connect(self.open_remove_account_dialog)
+
+        layout = QVBoxLayout()
+        layout.addWidget(title_label)
+        layout.addWidget(create_account_button)
+        layout.addWidget(select_account_button)
+        layout.addWidget(authenticate_account_button)
+        layout.addWidget(remove_account_button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def open_create_account_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Create Account')
+        dialog.setFixedSize(300, 150)
+
+        username_input = QLineEdit()
+        username_input.setPlaceholderText('Enter Username')
+
+        microsoft_checkbox = QCheckBox('Microsoft Account')
+
+        create_button = QPushButton('Create')
+        create_button.clicked.connect(lambda: self.create_account(dialog, username_input.text(), microsoft_checkbox.isChecked()))
+
+        layout = QVBoxLayout()
+        layout.addWidget(username_input)
+        layout.addWidget(microsoft_checkbox)
+        layout.addWidget(create_button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def open_select_account_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Select Account')
+        dialog.setFixedSize(300, 150)
+
         account_combo = QComboBox()
         self.populate_accounts(account_combo)
 
-        # Create select button
         select_button = QPushButton('Select')
         select_button.clicked.connect(lambda: self.set_default_account(dialog, account_combo.currentText()))
 
-        # Create input field for account name
-        account_input = QLineEdit()
-        account_input.setPlaceholderText('Xx_PussySlayer_xX')
+        layout = QVBoxLayout()
+        layout.addWidget(account_combo)
+        layout.addWidget(select_button)
 
-        # Create button to create new account
-        create_account_button = QPushButton('Create')
-        create_account_button.clicked.connect(lambda: self.create_account(dialog, account_input.text(), microsoft_checkbox.isChecked()))
+        dialog.setLayout(layout)
+        dialog.exec_()
 
-        # Create checkbox for Microsoft account
-        microsoft_checkbox = QCheckBox('Microsoft Account')
+    def open_authenticate_account_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Authenticate Account')
+        dialog.setFixedSize(300, 150)
 
-        # Create button to authenticate
+        account_combo = QComboBox()
+        self.populate_accounts(account_combo)
+
         authenticate_button = QPushButton('Authenticate')
         authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
 
-        # Create button to remove account
-        remove_account_button = QPushButton('Remove Account')
-        remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
+        layout = QVBoxLayout()
+        layout.addWidget(account_combo)
+        layout.addWidget(authenticate_button)
 
-        # Create layout for account selection
-        account_selection_layout = QVBoxLayout()
-        account_selection_layout.addWidget(title_label)
-        account_selection_layout.addWidget(account_combo)
-        account_selection_layout.addWidget(select_button)
-
-        # Create layout for account creation
-        create_account_layout = QHBoxLayout()
-        create_account_layout.addWidget(account_input)
-        create_account_layout.addWidget(create_account_button)
-
-        # Create layout for Microsoft account checkbox and authenticate button
-        microsoft_layout = QVBoxLayout()
-        microsoft_layout.addWidget(microsoft_checkbox)
-        microsoft_layout.addWidget(authenticate_button)
-
-        # Create layout for remove account button
-        remove_account_layout = QVBoxLayout()
-        remove_account_layout.addWidget(remove_account_button)
-
-        # Create main layout
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(account_selection_layout)
-        main_layout.addLayout(create_account_layout)
-        main_layout.addLayout(microsoft_layout)
-  #      main_layout.addStretch(1)
-        main_layout.addLayout(remove_account_layout)
-
-        dialog.setLayout(main_layout)
+        dialog.setLayout(layout)
         dialog.exec_()
+
+    def open_remove_account_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Remove Account')
+        dialog.setFixedSize(300, 150)
+
+        account_combo = QComboBox()
+        self.populate_accounts(account_combo)
+
+        remove_button = QPushButton('Remove')
+        remove_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
+
+        layout = QVBoxLayout()
+        layout.addWidget(account_combo)
+        layout.addWidget(remove_button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
 
     def authenticate_account(self, dialog, account_name):
         # Remove leading " * " from the account name
