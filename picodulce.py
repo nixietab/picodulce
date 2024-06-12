@@ -7,13 +7,13 @@ import shutil
 import requests
 import json
 import os
-from pypresence import Presence
 import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -706,7 +706,8 @@ class PicomcVersionSelector(QWidget):
             QMessageBox.critical(self, "Error", "Failed to download updates.")
 
     def start_discord_rcp(self):
-        client_id = '1236906342086606848'  # Replace with your Discord application client ID
+        from pypresence import Presence
+        client_id = '1236906342086606848'
         presence = Presence(client_id)
         
         try:
@@ -715,10 +716,10 @@ class PicomcVersionSelector(QWidget):
             presence.update(
                 state="In the menu",
                 details="best launcher to exist",
-                large_image="launcher_icon",  # Replace with your image key for the launcher image
-                large_text="PicoDulce Launcher",  # Replace with the text for the launcher image
+                large_image="launcher_icon",  
+                large_text="PicoDulce Launcher",
                 start=time.time(),
-                buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}]  # Add your button here
+                buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}] 
             )
             # Keep the script running to maintain the presence
             while True:
