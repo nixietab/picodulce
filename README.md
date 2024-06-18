@@ -1,6 +1,34 @@
-# Picodulce
+<p align="center">
+  <img src="https://github.com/nixietab/picodulce/assets/75538775/36fee78f-fb46-400c-8b14-dda5ec6191ef" alt="launcher_icon">
 
-Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the picomc project, providing users with a seamless experience in managing and launching game versions.
+</p>
+
+<h1 align="center">Picodulce Launcher</h1>
+
+<p align="center">The simple FOSS launcher you been looking for</p>
+
+
+<p align="center">
+  <a href="https://github.com/nixietab/picodulce/releases">
+    <img src="https://img.shields.io/github/v/release/nixietab/picodulce" alt="Latest Release">
+  </a>
+  <a href="https://github.com/nixietab/picodulce/issues">
+    <img src="https://img.shields.io/github/issues/nixietab/picodulce" alt="Issues">
+  </a>
+  <a href="https://github.com/nixietab/picodulce/pulls">
+    <img src="https://img.shields.io/github/issues-pr/nixietab/picodulce" alt="Pull Requests">
+  </a>
+  <a href="https://github.com/nixietab/picodulce/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/nixietab/picodulce" alt="License">
+  </a>
+  <a href="https://github.com/nixietab/picodulce">
+    <img src="https://img.shields.io/github/stars/nixietab/picodulce?style=social" alt="GitHub Stars">
+  </a>
+</p>
+
+
+  Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the picomc project, providing users with a seamless experience in managing and launching game versions.
+
 
 ![image](https://github.com/nixietab/picodulce/assets/75538775/808ac50b-96e6-4bc1-b7fd-a14f9ce5f064)
 
