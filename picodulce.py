@@ -9,8 +9,8 @@ import json
 import os
 import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -156,7 +156,7 @@ class PicomcVersionSelector(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(title_label)
 
-        # Create Update button
+        # Create checkboxes
         discord_rcp_checkbox = QCheckBox('Discord RCP')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
         check_updates_checkbox = QCheckBox('Check Updates on Start')
@@ -182,12 +182,29 @@ class PicomcVersionSelector(QWidget):
         save_button.clicked.connect(lambda: self.save_settings(discord_rcp_checkbox.isChecked(), check_updates_checkbox.isChecked(), theme_combobox.currentText()))
         layout.addWidget(save_button)
 
+        # Create Check for updates button
         update_button = QPushButton('Check for updates')
         update_button.clicked.connect(self.check_for_update)
         layout.addWidget(update_button)
 
+        # Create Open game directory button
+        open_game_directory_button = QPushButton('Open game directory')
+        open_game_directory_button.clicked.connect(self.open_game_directory)
+        layout.addWidget(open_game_directory_button)
+
         dialog.setLayout(layout)
         dialog.exec_()
+
+    def open_game_directory(self):
+        try:
+            # Run the command and capture the output
+            result = subprocess.run(['picomc', 'instance', 'dir'], capture_output=True, text=True, check=True)
+            game_directory = result.stdout.strip()
+
+            # Open the directory in the system's file explorer
+            QDesktopServices.openUrl(QUrl.fromLocalFile(game_directory))
+        except subprocess.CalledProcessError as e:
+            print(f"Error running picomc command: {e}")
 
     def save_settings(self, is_rcp_enabled, check_updates_on_start, selected_theme):
         config_path = "config.json"
