@@ -207,45 +207,50 @@ class PicomcVersionSelector(QWidget):
         QMessageBox.information(self, "Settings Saved", "Settings saved successfully!\n\n to them to be applyed you need to restart the launcher")
         self.__init__()
 
-
     def populate_installed_versions(self):
         config_path = "config.json"
-        # Check if config file exists
+        
+        # Check if the config file exists
         if not os.path.exists(config_path):
             logging.error("Config file not found.")
             self.populate_installed_versions_normal_order()
             return
 
-        # Load config from file
-        with open(config_path, "r") as config_file:
-            self.config = json.load(config_file)
+        # Load config from the file
+        try:
+            with open(config_path, "r") as config_file:
+                self.config = json.load(config_file)
+        except json.JSONDecodeError as e:
+            logging.error("Failed to load config: %s", e)
+            self.populate_installed_versions_normal_order()
+            return
 
-        # Run the command and get the output
+        # Run the command and capture the output
         try:
             process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output, error = process.communicate()
+            
             if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+                raise subprocess.CalledProcessError(process.returncode, process.args, output=output, stderr=error)
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error("'picomc' command not found. Please ensure it's installed and in your PATH.")
             return
         except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
+            logging.error("Error running 'picomc': %s", e.stderr)
             return
 
         # Parse the output and replace '[local]' with a space
-        versions = output.splitlines()
-        versions = [version.replace('[local]', ' ').strip() for version in versions]
+        versions = [version.replace('[local]', ' ').strip() for version in output.splitlines()]
 
-        # Get last played version from config
+        # Get the last played version from the config
         last_played = self.config.get("LastPlayed", "")
 
-        # If lastplayed is not empty and is in the versions list, move it to the top
+        # If last played is not empty and is in the versions list, move it to the top
         if last_played and last_played in versions:
             versions.remove(last_played)
             versions.insert(0, last_played)
 
-        # Populate installed versions combo box
+        # Populate the installed versions combo box
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
 
