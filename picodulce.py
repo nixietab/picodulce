@@ -331,10 +331,10 @@ class PicomcVersionSelector(QWidget):
 
     def run_game(self, selected_instance):
         try:
-            subprocess.run(['picomc', 'play', selected_instance], check=True)
             # Update lastplayed field in config.json on a separate thread
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
+            subprocess.run(['picomc', 'play', selected_instance], check=True)
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e}"
             logging.error(error_message)
