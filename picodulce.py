@@ -10,7 +10,7 @@ import os
 import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -301,7 +301,6 @@ class PicomcVersionSelector(QWidget):
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
 
-
     def play_instance(self):
         if self.installed_version_combo.count() == 0:
             QMessageBox.warning(self, "No Version Available", "Please download a version first.")
@@ -319,7 +318,7 @@ class PicomcVersionSelector(QWidget):
                 QMessageBox.warning(self, "No Account Selected", "Please select an account.")
                 return
         except subprocess.CalledProcessError as e:
-            error_message = f"Error fetching accounts: {e.stderr.decode()}"
+            error_message = f"Error fetching accounts: {str(e)}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
             return
@@ -333,19 +332,26 @@ class PicomcVersionSelector(QWidget):
     def run_game(self, selected_instance):
         try:
             subprocess.run(['picomc', 'play', selected_instance], check=True)
-            # Update lastplayed field in config.json
-            self.update_last_played(selected_instance)
+            # Update lastplayed field in config.json on a separate thread
+            update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
+            update_thread.start()
         except subprocess.CalledProcessError as e:
-            error_message = f"Error playing {selected_instance}: {e.stderr.decode()}"
+            error_message = f"Error playing {selected_instance}: {e}"
             logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
-
+            # Use QMetaObject.invokeMethod to call showError safely
+            QMetaObject.invokeMethod(self, "showError", Qt.QueuedConnection, 
+                                     Q_ARG(str, "Error"), Q_ARG(str, error_message))
 
     def update_last_played(self, selected_instance):
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
+
+
+    def showError(self, title, message):
+        QMessageBox.critical(self, title, message)
+
 
     def manage_accounts(self):
         dialog = QDialog(self)
