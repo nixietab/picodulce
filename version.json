@@ -1,10 +1,11 @@
 {
-  "version": "0.9.9.1",
+  "version": "0.9.9.2",
   "links": [
     "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/picodulce.py",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/requirements.txt",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/drums.gif",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/marroc.py"
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/marroc.py",
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/holiday.ico"
   ]
 }
