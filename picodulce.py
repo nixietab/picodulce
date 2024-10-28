@@ -11,9 +11,9 @@ import time
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG
+from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -32,7 +32,13 @@ class PicomcVersionSelector(QWidget):
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
-        self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set window icon
+        current_date = datetime.now()
+        if (current_date.month == 12 and current_date.day >= 18) or (current_date.month == 1 and current_date.day <= 1):
+            self.setWindowIcon(QIcon('holiday.ico'))  # Set holiday icon
+        else:
+            self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
+
+
         self.setGeometry(100, 100, 400, 250)
 
         # Set application style and palette
@@ -51,6 +57,8 @@ class PicomcVersionSelector(QWidget):
             palette = self.create_strawberry_palette()
         elif palette_type == "Native":
             palette = self.create_native_palette()
+        elif palette_type == "Christmas":
+            palette = self.create_christmas_palette()
         else:
             # Default to dark palette if the type is not specified or invalid
             palette = self.create_dark_palette()
@@ -171,7 +179,7 @@ class PicomcVersionSelector(QWidget):
         layout.addWidget(theme_label)
 
         theme_combobox = QComboBox()
-        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry', "Native"]  # Replace with your actual themes
+        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry', "Native", "Christmas"]  # Replace with your actual themes
         theme_combobox.addItems(themes)
         current_theme_index = themes.index(self.config.get("Palette", "Default Theme"))
         theme_combobox.setCurrentIndex(current_theme_index)
@@ -614,7 +622,7 @@ class PicomcVersionSelector(QWidget):
                     QMessageBox.critical(self, "Error", error_message)
 
     def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple Minecraft launcher built using Qt, based on the picomc project.\n\nCredits:\nNixietab: Code and UI design\nWabaano: Graphic design"
+        about_message = "PicoDulce Launcher\n\nA simple Minecraft launcher built using Qt, based on the picomc project.\n\nCredits:\nNixietab: Code and UI design\nWabaano: Graphic design\nOlinad: Christmas!!!!"
         QMessageBox.about(self, "About", about_message)
 
 
@@ -709,6 +717,29 @@ class PicomcVersionSelector(QWidget):
         palette = QPalette()
         return palette
 
+    def create_christmas_palette(self):
+        palette = QPalette()
+        # I know is shitty ok
+        # Background colors
+        palette.setColor(QPalette.Window, QColor(34, 49, 34))  # Deep evergreen
+        palette.setColor(QPalette.WindowText, QColor(210, 255, 210))  # Soft, frosty green text
+        palette.setColor(QPalette.Base, QColor(17, 34, 17))  # Dark forest green
+        palette.setColor(QPalette.AlternateBase, QColor(25, 51, 25))  # Slightly lighter green for contrast
+        palette.setColor(QPalette.ToolTipBase, QColor(245, 255, 245))  # Light green for tooltips
+        palette.setColor(QPalette.ToolTipText, QColor(34, 139, 34))  # Vibrant green for tooltip text
+        
+        # Text colors
+        palette.setColor(QPalette.Text, QColor(245, 255, 245))  # Light green for standard text
+        palette.setColor(QPalette.Button, QColor(0, 100, 0))  # Dark green for buttons
+        palette.setColor(QPalette.ButtonText, QColor(245, 255, 245))  # Light green button text
+        palette.setColor(QPalette.BrightText, QColor(60, 179, 113))  # Bright mint green for emphasis
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))  # Blue links for contrast
+        
+        # Highlight colors
+        palette.setColor(QPalette.Highlight, QColor(0, 128, 0))  # Rich pine green highlight
+        palette.setColor(QPalette.HighlightedText, QColor(245, 255, 245))  # Light green text on highlights
+
+        return palette
 
 
     def check_for_update_start(self):
@@ -1064,7 +1095,13 @@ class ModLoaderAndVersionMenu(QDialog):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app_icon = QIcon('launcher_icon.ico') 
+    current_date = datetime.now()
+
+    # Set the application icon based on the date
+    if (current_date.month == 12 and current_date.day >= 18) or (current_date.month == 1 and current_date.day <= 1):
+        app.setWindowIcon(QIcon('holiday.ico'))  # Set holiday icon
+    else:
+        app.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
     window = PicomcVersionSelector()
     window.show()
     sys.exit(app.exec_())
