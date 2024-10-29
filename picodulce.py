@@ -622,10 +622,23 @@ class PicomcVersionSelector(QWidget):
                     QMessageBox.critical(self, "Error", error_message)
 
     def show_about_dialog(self):
-        about_message = "PicoDulce Launcher\n\nA simple Minecraft launcher built using Qt, based on the picomc project.\n\nCredits:\nNixietab: Code and UI design\nWabaano: Graphic design\nOlinad: Christmas!!!!"
+        # Load the version number from version.json
+        try:
+            with open('version.json', 'r') as version_file:
+                version_data = json.load(version_file)
+                version_number = version_data.get('version', 'unknown version')
+        except (FileNotFoundError, json.JSONDecodeError):
+            version_number = 'unknown version'
+
+        about_message = (
+            f"PicoDulce Launcher (v{version_number})\n\n"
+            "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
+            "Credits:\n"
+            "Nixietab: Code and UI design\n"
+            "Wabaano: Graphic design\n"
+            "Olinad: Christmas!!!!"
+        )
         QMessageBox.about(self, "About", about_message)
-
-
 
     def create_dark_palette(self):
         palette = QPalette()
