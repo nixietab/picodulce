@@ -303,8 +303,9 @@ class PicomcVersionSelector(QWidget):
 
     def open_marroc_script(self):
         try:
-            # Replace 'path_to_marroc.py' with the actual path to marroc.py
-            subprocess.Popen(['python', 'marroc.py'])
+            # Use the interpreter from the current environment
+            interpreter = sys.executable
+            subprocess.Popen([interpreter, './marroc.py'])
         except FileNotFoundError:
             logging.error("'marroc.py' not found.")
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
