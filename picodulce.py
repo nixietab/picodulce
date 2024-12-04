@@ -33,7 +33,7 @@ class PicomcVersionSelector(QWidget):
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
         current_date = datetime.now()
-        if (current_date.month == 12 and current_date.day >= 18) or (current_date.month == 1 and current_date.day <= 1):
+        if (current_date.month == 12 and current_date.day >= 8) or (current_date.month == 1 and current_date.day <= 1):
             self.setWindowIcon(QIcon('holiday.ico'))  # Set holiday icon
         else:
             self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
@@ -1112,7 +1112,7 @@ if __name__ == '__main__':
     current_date = datetime.now()
 
     # Set the application icon based on the date
-    if (current_date.month == 12 and current_date.day >= 18) or (current_date.month == 1 and current_date.day <= 1):
+    if (current_date.month == 12 and current_date.day >= 8) or (current_date.month == 1 and current_date.day <= 1):
         app.setWindowIcon(QIcon('holiday.ico'))  # Set holiday icon
     else:
         app.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
