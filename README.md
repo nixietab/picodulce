@@ -30,7 +30,7 @@
   Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the picomc project, providing users with a seamless experience in managing and launching game versions.
 
 
-![image](https://github.com/nixietab/picodulce/assets/75538775/808ac50b-96e6-4bc1-b7fd-a14f9ce5f064)
+![imagen](https://github.com/user-attachments/assets/115b39be-47d3-4ac7-893a-5849c1e4570c)
 
 ## Key Features
 
