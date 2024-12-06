@@ -361,40 +361,58 @@ class PicomcVersionSelector(QWidget):
     def showError(self, title, message):
         QMessageBox.critical(self, title, message)
 
-
     def manage_accounts(self):
+        # Main account management dialog
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
         dialog.setWindowTitle('Manage Accounts')
         dialog.setFixedSize(400, 250)
 
+        # Title
         title_label = QLabel('Manage Accounts')
         title_label.setFont(QFont("Arial", 14))
 
+        # Dropdown for selecting accounts
+        account_combo = QComboBox()
+        self.populate_accounts(account_combo)
+
+        # Buttons
         create_account_button = QPushButton('Create Account')
         create_account_button.clicked.connect(self.open_create_account_dialog)
 
-        select_account_button = QPushButton('Select Account')
-        select_account_button.clicked.connect(self.open_select_account_dialog)
-
-        authenticate_account_button = QPushButton('Authenticate Account')
-        authenticate_account_button.clicked.connect(self.open_authenticate_account_dialog)
+        authenticate_button = QPushButton('Authenticate Account')
+        authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
 
         remove_account_button = QPushButton('Remove Account')
-        remove_account_button.clicked.connect(self.open_remove_account_dialog)
+        remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
 
+        # New button to set the account idk
+        set_default_button = QPushButton('Select')
+        set_default_button.setFixedWidth(100)  # Set button width to a quarter
+        set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
+
+        # Layout for account selection (dropdown and set default button)
+        account_layout = QHBoxLayout()
+        account_layout.addWidget(account_combo)
+        account_layout.addWidget(set_default_button)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(create_account_button)
+        button_layout.addWidget(authenticate_button)
+        button_layout.addWidget(remove_account_button)
+
+        # Main layout
         layout = QVBoxLayout()
         layout.addWidget(title_label)
-        layout.addWidget(create_account_button)
-        layout.addWidget(select_account_button)
-        layout.addWidget(authenticate_account_button)
-        layout.addWidget(remove_account_button)
+        layout.addLayout(account_layout)
+        layout.addLayout(button_layout)
 
         dialog.setLayout(layout)
         dialog.exec_()
         self.open_dialogs.remove(dialog)
 
     def open_create_account_dialog(self):
+        # Dialog for creating a new account
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
         dialog.setWindowTitle('Create Account')
@@ -417,68 +435,13 @@ class PicomcVersionSelector(QWidget):
         dialog.exec_()
         self.open_dialogs.remove(dialog)
 
-    def open_select_account_dialog(self):
-        dialog = QDialog(self)
-        self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Select Account')
-        dialog.setFixedSize(300, 150)
-
-        account_combo = QComboBox()
-        self.populate_accounts(account_combo)
-
-        select_button = QPushButton('Select')
-        select_button.clicked.connect(lambda: self.set_default_account(dialog, account_combo.currentText()))
-
-        layout = QVBoxLayout()
-        layout.addWidget(account_combo)
-        layout.addWidget(select_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-        self.open_dialogs.remove(dialog)
-
-    def open_authenticate_account_dialog(self):
-        dialog = QDialog(self)
-        self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Authenticate Account')
-        dialog.setFixedSize(300, 150)
-
-        account_combo = QComboBox()
-        self.populate_accounts(account_combo)
-
-        authenticate_button = QPushButton('Authenticate')
-        authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
-
-        layout = QVBoxLayout()
-        layout.addWidget(account_combo)
-        layout.addWidget(authenticate_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-        self.open_dialogs.remove(dialog)
-
-    def open_remove_account_dialog(self):
-        dialog = QDialog(self)
-        self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Remove Account')
-        dialog.setFixedSize(300, 150)
-
-        account_combo = QComboBox()
-        self.populate_accounts(account_combo)
-
-        remove_button = QPushButton('Remove')
-        remove_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
-
-        layout = QVBoxLayout()
-        layout.addWidget(account_combo)
-        layout.addWidget(remove_button)
-
-        dialog.setLayout(layout)
-        dialog.exec_()
-        self.open_dialogs.remove(dialog)
-
     def authenticate_account(self, dialog, account_name):
+        # Authenticate a selected account
         account_name = account_name.strip().lstrip(" * ")
+        if not account_name:
+            QMessageBox.warning(dialog, "Warning", "Please select an account to authenticate.")
+            return
+
         try:
             subprocess.run(['picomc', 'account', 'authenticate', account_name], check=True)
             QMessageBox.information(self, "Success", f"Account '{account_name}' authenticated successfully!")
@@ -487,140 +450,102 @@ class PicomcVersionSelector(QWidget):
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
 
+    def remove_account(self, dialog, username):
+        # Remove a selected account
+        username = username.strip().lstrip(" * ")
+        if not username:
+            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            return
+
+        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
+        confirm_dialog = QMessageBox.question(dialog, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm_dialog == QMessageBox.Yes:
+            try:
+                subprocess.run(['picomc', 'account', 'remove', username], check=True)
+                QMessageBox.information(dialog, "Success", f"Account '{username}' removed successfully!")
+                self.populate_accounts_for_all_dialogs()
+            except subprocess.CalledProcessError as e:
+                error_message = f"Error removing account: {e.stderr.decode()}"
+                logging.error(error_message)
+                QMessageBox.critical(dialog, "Error", error_message)
+
+    def create_account(self, dialog, username, is_microsoft):
+        # Create a new account
+        if not username.strip():
+            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            return
+
+        try:
+            command = ['picomc', 'account', 'create', username]
+            if is_microsoft:
+                command.append('--ms')
+
+            subprocess.run(command, check=True)
+            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
+            self.populate_accounts_for_all_dialogs()
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error creating account: {e.stderr.decode()}"
+            logging.error(error_message)
+            QMessageBox.critical(dialog, "Error", error_message)
+
     def populate_accounts(self, account_combo):
+        # Populate the account dropdown
         try:
             process = subprocess.Popen(['picomc', 'account', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output, error = process.communicate()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
+
+            # Process accounts, keeping the one with "*" at the top
+            accounts = output.splitlines()
+            starred_account = None
+            normal_accounts = []
+
+            for account in accounts:
+                account = account.strip()
+                if account.startswith('*'):
+                    starred_account = account.lstrip(' *').strip()
+                else:
+                    normal_accounts.append(account)
+
+            # Clear the combo box and add accounts
+            account_combo.clear()
+
+            # Add the starred account first, if exists
+            if starred_account:
+                account_combo.addItem(f"* {starred_account}")
+
+            # Add the normal accounts
+            for account in normal_accounts:
+                account_combo.addItem(account)
+
         except FileNotFoundError:
             logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
         except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
-            return
-
-        accounts = output.splitlines()
-        accounts = [account.replace(' *', '').strip() for account in accounts]
-
-        account_combo.clear()
-        account_combo.addItems(accounts)
-
-    def create_account(self, dialog, username, is_microsoft):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
-            return
-
-        try:
-            command = ['picomc', 'account', 'create', username]
-            if is_microsoft:
-                command.append('--ms')
-
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            QMessageBox.information(self, "Success", f"Account {username} created successfully!")
-
-            self.populate_accounts_for_all_dialogs()
-
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
+            logging.error(f"Error: {e.stderr}")
 
     def populate_accounts_for_all_dialogs(self):
+        # Update account dropdowns in all open dialogs
         for dialog in self.open_dialogs:
             combo_box = dialog.findChild(QComboBox)
             if combo_box:
                 self.populate_accounts(combo_box)
 
-    def set_default_account(self, dialog, account):
-        dialog.close()
-        try:
-            subprocess.run(['picomc', 'account', 'setdefault', account], check=True)
-            QMessageBox.information(self, "Success", f"Default account set to {account}!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error setting default account: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
-
-    def remove_account(self, dialog, username):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
-            return
-
-        username = username.strip().lstrip(" * ")
-
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(self, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if confirm_dialog == QMessageBox.Yes:
-            confirm_message_again = "This action is irreversible. Are you absolutely sure?"
-            confirm_dialog_again = QMessageBox.question(self, "Confirm Removal", confirm_message_again, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if confirm_dialog_again == QMessageBox.Yes:
-                try:
-                    subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                    QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
-                    self.populate_accounts_for_all_dialogs()
-                except subprocess.CalledProcessError as e:
-                    error_message = f"Error removing account: {e.stderr.decode()}"
-                    logging.error(error_message)
-                    QMessageBox.critical(self, "Error", error_message)
-
-    def create_account(self, dialog, username, is_microsoft):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+    def set_default_account(self, account_name, dialog):
+        # Set the selected account as the default
+        account_name = account_name.strip().lstrip(" * ")
+        if not account_name:
+            QMessageBox.warning(dialog, "Warning", "Please select an account to set as default.")
             return
 
         try:
-            command = ['picomc', 'account', 'create', username]
-            if is_microsoft:
-                command.append('--ms')
-
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            QMessageBox.information(self, "Success", f"Account {username} created successfully!")
-
+            subprocess.run(['picomc', 'account', 'setdefault', account_name], check=True)
+            QMessageBox.information(self, "Success", f"Account '{account_name}' set as default!")
             self.populate_accounts_for_all_dialogs()
-
         except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
+            error_message = f"Error setting default account '{account_name}': {e.stderr.decode()}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
-
-    def populate_accounts_for_all_dialogs(self):
-        for dialog in self.open_dialogs:
-            combo_box = dialog.findChild(QComboBox)
-            if combo_box:
-                self.populate_accounts(combo_box)
-
-    def set_default_account(self, dialog, account):
-        dialog.close()
-        try:
-            subprocess.run(['picomc', 'account', 'setdefault', account], check=True)
-            QMessageBox.information(self, "Success", f"Default account set to {account}!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error setting default account: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
-
-    def remove_account(self, dialog, username):
-        if username.strip() == '':
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
-            return
-
-        username = username.strip().lstrip(" * ")
-
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(self, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if confirm_dialog == QMessageBox.Yes:
-            confirm_message_again = "This action is irreversible. Are you absolutely sure?"
-            confirm_dialog_again = QMessageBox.question(self, "Confirm Removal", confirm_message_again, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if confirm_dialog_again == QMessageBox.Yes:
-                try:
-                    subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                    QMessageBox.information(self, "Success", f"Account '{username}' removed successfully!")
-                    self.populate_accounts_for_all_dialogs()
-                except subprocess.CalledProcessError as e:
-                    error_message = f"Error removing account: {e.stderr.decode()}"
-                    logging.error(error_message)
-                    QMessageBox.critical(self, "Error", error_message)
 
     def show_about_dialog(self):
         # Load the version number from version.json
@@ -1104,7 +1029,6 @@ class ModLoaderAndVersionMenu(QDialog):
             error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
-
 
 
 if __name__ == '__main__':
