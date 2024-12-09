@@ -4,11 +4,12 @@ import threading
 from threading import Thread
 import logging
 import shutil
+import platform
 import requests
 import json
 import os
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG
 from datetime import datetime
@@ -134,11 +135,10 @@ class PicomcVersionSelector(QWidget):
         with open(config_path, "r") as config_file:
             self.config = json.load(config_file)
 
-
     def open_settings_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Settings')
-        dialog.setFixedSize(300, 200)
+        dialog.setFixedSize(300, 250)
 
         # Create title label
         title_label = QLabel('Settings')
@@ -184,6 +184,11 @@ class PicomcVersionSelector(QWidget):
         open_game_directory_button.clicked.connect(self.open_game_directory)
         layout.addWidget(open_game_directory_button)
 
+        # Create "Stats for Nerds" button
+        stats_button = QPushButton('Stats for Nerds')
+        stats_button.clicked.connect(self.show_system_info)
+        layout.addWidget(stats_button)
+
         dialog.setLayout(layout)
         dialog.exec_()
 
@@ -201,6 +206,42 @@ class PicomcVersionSelector(QWidget):
         # Default to dark palette if the type is not specified or invalid
         return palettes.get(palette_type, self.create_dark_palette)()
 
+    def get_system_info(self):
+        # Get system information
+        java_version = subprocess.getoutput("java -version 2>&1 | head -n 1")
+        python_version = sys.version
+        pip_version = subprocess.getoutput("pip --version")
+        architecture = platform.architecture()[0]
+        operating_system = platform.system() + " " + platform.release()
+
+        # Get versions of installed pip packages
+        installed_packages = subprocess.getoutput("pip list")
+
+        return f"Java Version: {java_version}\nPython Version: {python_version}\nPip Version: {pip_version}\n" \
+               f"Architecture: {architecture}\nOperating System: {operating_system}\n\nPip Installed Packages:\n{installed_packages}"
+
+    def show_system_info(self):
+        system_info = self.get_system_info()
+
+        # Create a dialog to show the system info in a text box
+        info_dialog = QDialog(self)
+        info_dialog.setWindowTitle('Stats for Nerds')
+
+        layout = QVBoxLayout()
+
+        # Create a text box to display the system info
+        text_box = QTextEdit()
+        text_box.setText(system_info)
+        text_box.setReadOnly(True)  # Make the text box read-only
+        layout.addWidget(text_box)
+
+        # Create a close button
+        close_button = QPushButton('Close')
+        close_button.clicked.connect(info_dialog.close)
+        layout.addWidget(close_button)
+
+        info_dialog.setLayout(layout)
+        info_dialog.exec_()
 
     def open_game_directory(self):
         try:
