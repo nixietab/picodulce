@@ -42,26 +42,10 @@ class PicomcVersionSelector(QWidget):
         self.setGeometry(100, 100, 400, 250)
 
         # Set application style and palette
-        app_style = QApplication.setStyle("Fusion")
+        QApplication.setStyle("Fusion")
         self.check_config_file()
         palette_type = self.config.get("Palette", "Dark")
-        if palette_type == "Dark":
-            palette = self.create_dark_palette()
-        elif palette_type == "Obsidian":
-            palette = self.create_obsidian_palette()
-        elif palette_type == "Redstone":
-            palette = self.create_redstone_palette()
-        elif palette_type == "Alpha":
-            palette = self.create_alpha_palette()
-        elif palette_type == "Strawberry":
-            palette = self.create_strawberry_palette()
-        elif palette_type == "Native":
-            palette = self.create_native_palette()
-        elif palette_type == "Christmas":
-            palette = self.create_christmas_palette()
-        else:
-            # Default to dark palette if the type is not specified or invalid
-            palette = self.create_dark_palette()
+        palette = self.get_palette(palette_type)
         QApplication.instance().setPalette(palette)
         
         # Create title label
@@ -202,6 +186,21 @@ class PicomcVersionSelector(QWidget):
 
         dialog.setLayout(layout)
         dialog.exec_()
+
+    def get_palette(self, palette_type):
+        """Retrieve the corresponding palette based on the palette type."""
+        palettes = {
+            "Dark": self.create_dark_palette,
+            "Obsidian": self.create_obsidian_palette,
+            "Redstone": self.create_redstone_palette,
+            "Alpha": self.create_alpha_palette,
+            "Strawberry": self.create_strawberry_palette,
+            "Native": self.create_native_palette,
+            "Christmas": self.create_christmas_palette,
+        }
+        # Default to dark palette if the type is not specified or invalid
+        return palettes.get(palette_type, self.create_dark_palette)()
+
 
     def open_game_directory(self):
         try:
@@ -371,7 +370,7 @@ class PicomcVersionSelector(QWidget):
         # Title
         title_label = QLabel('Manage Accounts')
         title_label.setFont(QFont("Arial", 14))
-
+        title_label.setAlignment(Qt.AlignCenter)  # Center the text
         # Dropdown for selecting accounts
         account_combo = QComboBox()
         self.populate_accounts(account_combo)
