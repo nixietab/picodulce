@@ -114,6 +114,20 @@ class PicomcVersionSelector(QWidget):
 
         self.setLayout(main_layout)
 
+    def keyPressEvent(self, event):
+        focus_widget = self.focusWidget()
+        if event.key() == Qt.Key_Down:
+            self.focusNextChild()  # Move focus to the next widget
+        elif event.key() == Qt.Key_Up:
+            self.focusPreviousChild()  # Move focus to the previous widget
+        elif event.key() in [Qt.Key_Return, Qt.Key_Enter]:
+            if isinstance(focus_widget, QPushButton):
+                focus_widget.click()  # Trigger the button click
+            elif isinstance(focus_widget, QComboBox):
+                focus_widget.showPopup()  # Show dropdown for combo box
+        else:
+            super().keyPressEvent(event)
+
     def check_config_file(self):
         config_path = "config.json"
         default_config = {
@@ -1069,6 +1083,8 @@ class ModLoaderAndVersionMenu(QDialog):
             error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
+
+
 
 
 if __name__ == '__main__':
