@@ -62,6 +62,20 @@ class ModrinthSearchApp(QWidget):
 
         self.setLayout(layout)
 
+    def keyPressEvent(self, event):
+        focus_widget = self.focusWidget()
+        if event.key() == Qt.Key_Down:
+            self.focusNextChild()  # Move focus to the next widget
+        elif event.key() == Qt.Key_Up:
+            self.focusPreviousChild()  # Move focus to the previous widget
+        elif event.key() in [Qt.Key_Return, Qt.Key_Enter]:
+            if isinstance(focus_widget, QPushButton):
+                focus_widget.click()  # Trigger the button click
+            elif isinstance(focus_widget, QComboBox):
+                focus_widget.showPopup()  # Show dropdown for combo box
+        else:
+            super().keyPressEvent(event)
+
     def ensure_directories_exist(self):
         directories = ["marroc/mods", "marroc/resourcepacks"]
         for directory in directories:
