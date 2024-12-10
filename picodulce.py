@@ -163,7 +163,7 @@ class PicomcVersionSelector(QWidget):
         layout.addWidget(title_label)
 
         # Create checkboxes
-        discord_rcp_checkbox = QCheckBox('Discord RCP')
+        discord_rcp_checkbox = QCheckBox('Discord RPC')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
         check_updates_checkbox = QCheckBox('Check Updates on Start')
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
