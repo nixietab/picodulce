@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
+        self.current_state = "menu"
         self.open_dialogs = []
         super().__init__()
 
@@ -394,16 +395,26 @@ class PicomcVersionSelector(QWidget):
 
     def run_game(self, selected_instance):
         try:
+            # Set current_state to the selected instance
+            self.current_state = selected_instance
             # Update lastplayed field in config.json on a separate thread
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
+
+            # Run the game subprocess
             subprocess.run(['picomc', 'play', selected_instance], check=True)
+
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e}"
             logging.error(error_message)
             # Use QMetaObject.invokeMethod to call showError safely
-            QMetaObject.invokeMethod(self, "showError", Qt.QueuedConnection, 
-                                     Q_ARG(str, "Error"), Q_ARG(str, error_message))
+            QMetaObject.invokeMethod(
+                self, "showError", Qt.QueuedConnection,
+                Q_ARG(str, "Error"), Q_ARG(str, error_message)
+            )
+        finally:
+            # Reset current_state to "menu" after the game closes
+            self.current_state = "menu"
 
     def update_last_played(self, selected_instance):
         config_path = "config.json"
@@ -836,19 +847,31 @@ class PicomcVersionSelector(QWidget):
         try:
             presence.connect()
 
-            presence.update(
-                state="In the menu",
-                details="best launcher to exist",
-                large_image="launcher_icon",  
-                large_text="PicoDulce Launcher",
-                start=time.time(),
-                buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}] 
-            )
-            # Keep the script running to maintain the presence
+            # Initialize start time for the session
+            start_time = time.time()
+
             while True:
-                time.sleep(15)  # Update presence every 15 seconds
+                # Determine the state and details based on the current_state
+                if self.current_state == "menu":
+                    state = "In the menu"
+                    details = "Picodulce FOSS Launcher"
+                else:
+                    state = f"Playing {self.current_state}"
+
+                # Update presence
+                presence.update(
+                    state=state,
+                    details=details,
+                    large_image="launcher_icon",
+                    large_text="PicoDulce Launcher",
+                    start=start_time,
+                    buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}]
+                )
+                
+                # Wait for 15 seconds before checking again
+                time.sleep(15)
         except Exception as e:
-            logging.error("Failed to start Discord RCP: %s", str(e))
+            logging.error("Failed to start Discord RPC: %s", str(e))
 
     def open_mod_loader_and_version_menu(self):
         dialog = ModLoaderAndVersionMenu()
@@ -1083,8 +1106,6 @@ class ModLoaderAndVersionMenu(QDialog):
             error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
-
-
 
 
 if __name__ == '__main__':
