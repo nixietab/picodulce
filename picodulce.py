@@ -1111,6 +1111,10 @@ class ModLoaderAndVersionMenu(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     current_date = datetime.now()
+    # ---------------------------------------------------------------------
+    # I wish for everyone that plays this to enjoy the game as much as I,
+    # may joy give a little more peace in this troubled world
+    # ---------------------------------------------------------------------
 
     # Set the application icon based on the date
     if (current_date.month == 12 and current_date.day >= 8) or (current_date.month == 1 and current_date.day <= 1):
