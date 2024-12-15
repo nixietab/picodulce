@@ -862,11 +862,13 @@ class PicomcVersionSelector(QWidget):
                 else:
                     state = f"Playing {self.current_state}"
 
-                    # Determine the appropriate large image
+                    # Determine the appropriate large image based on the current_state
                     if "forge" in self.current_state.lower():
                         large_image = "forge"
                     elif "fabric" in self.current_state.lower():
                         large_image = "fabric"
+                    elif "optifine" in self.current_state.lower():  # Check for OptiFine
+                        large_image = "optifine"
                     else:
                         large_image = "vanilla"  # Default to vanilla if no specific patterns match
 
