@@ -841,9 +841,12 @@ class PicomcVersionSelector(QWidget):
 
     def start_discord_rcp(self):
         from pypresence import Presence
+        import time
+        import logging
+
         client_id = '1236906342086606848'
         presence = Presence(client_id)
-        
+
         try:
             presence.connect()
 
@@ -855,14 +858,23 @@ class PicomcVersionSelector(QWidget):
                 if self.current_state == "menu":
                     state = "In the menu"
                     details = "Picodulce FOSS Launcher"
+                    large_image = "launcher_icon"
                 else:
                     state = f"Playing {self.current_state}"
+
+                    # Determine the appropriate large image
+                    if "forge" in self.current_state.lower():
+                        large_image = "forge"
+                    elif "fabric" in self.current_state.lower():
+                        large_image = "fabric"
+                    else:
+                        large_image = "vanilla"  # Default to vanilla if no specific patterns match
 
                 # Update presence
                 presence.update(
                     state=state,
                     details=details,
-                    large_image="launcher_icon",
+                    large_image=large_image,
                     large_text="PicoDulce Launcher",
                     start=start_time,
                     buttons=[{"label": "Download", "url": "https://github.com/nixietab/picodulce"}]
@@ -872,6 +884,7 @@ class PicomcVersionSelector(QWidget):
                 time.sleep(15)
         except Exception as e:
             logging.error("Failed to start Discord RPC: %s", str(e))
+
 
     def open_mod_loader_and_version_menu(self):
         dialog = ModLoaderAndVersionMenu()
