@@ -41,4 +41,4 @@
 
 
 ### About the name
-The name "Picodulce" comes from a popular Argentine candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
+The name "Picodulce" comes from a popular Argentinian candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
