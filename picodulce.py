@@ -9,9 +9,9 @@ import requests
 import json
 import os
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,10 +20,27 @@ class PicomcVersionSelector(QWidget):
     def __init__(self):
         self.current_state = "menu"
         self.open_dialogs = []
-        super().__init__()
-
-        self.init_ui()
         self.check_config_file()
+        self.themes_integrity()
+        # Specify the path to the themes directory
+        themes_folder = "themes"
+        
+        # Default theme file name (can be changed)
+        theme_file = self.config.get("Theme", "Dark.json")
+
+        # Ensure the theme file exists in the themes directory
+        theme_file_path = os.path.join(themes_folder, theme_file)
+
+        try:
+            # Load and apply the theme from the file
+            self.load_theme_from_file(theme_file_path, app)
+            print(f"Theme '{theme_file}' loaded successfully.")
+        except Exception as e:
+            print(f"Error: Could not load theme '{theme_file}'. Falling back to default theme. {e}")
+
+        super().__init__()
+        self.init_ui()
+
         if self.config.get("CheckUpdate", False):
             self.check_for_update_start()
 
@@ -31,6 +48,98 @@ class PicomcVersionSelector(QWidget):
             discord_rcp_thread = Thread(target=self.start_discord_rcp)
             discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
             discord_rcp_thread.start()
+
+    def load_theme_from_file(self, file_path, app):
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Theme file '{file_path}' not found.")
+
+        # Open and parse the JSON file
+        with open(file_path, "r") as file:
+            self.theme = json.load(file)  # Store theme as a class attribute
+
+        # Ensure the required keys exist
+        if "palette" not in self.theme:
+            raise ValueError("JSON theme must contain a 'palette' section.")
+
+        # Extract the palette
+        palette_config = self.theme["palette"]
+
+        # Create a new QPalette
+        palette = QPalette()
+
+        # Map palette roles to PyQt5 palette roles
+        role_map = {
+            "Window": QPalette.Window,
+            "WindowText": QPalette.WindowText,
+            "Base": QPalette.Base,
+            "AlternateBase": QPalette.AlternateBase,
+            "ToolTipBase": QPalette.ToolTipBase,
+            "ToolTipText": QPalette.ToolTipText,
+            "Text": QPalette.Text,
+            "Button": QPalette.Button,
+            "ButtonText": QPalette.ButtonText,
+            "BrightText": QPalette.BrightText,
+            "Link": QPalette.Link,
+            "Highlight": QPalette.Highlight,
+            "HighlightedText": QPalette.HighlightedText
+        }
+
+        # Apply colors from the palette config
+        for role_name, color_code in palette_config.items():
+            if role_name in role_map:
+                palette.setColor(role_map[role_name], QColor(color_code))
+            else:
+                print(f"Warning: '{role_name}' is not a recognized palette role.")
+        
+        # Apply the palette to the application
+        app.setPalette(palette)
+
+    def themes_integrity(self):
+        # Define folder and file paths
+        themes_folder = "themes"
+        dark_theme_file = os.path.join(themes_folder, "Dark.json")
+
+        # Define the default content for Dark.json
+        dark_theme_content = {
+            "manifest": {
+                "name": "Dark",
+                "description": "The default picodulce launcher theme",
+                "author": "Nixietab",
+                "license": "MIT"
+            },
+            "palette": {
+                "Window": "#353535",
+                "WindowText": "#ffffff",
+                "Base": "#191919",
+                "AlternateBase": "#353535",
+                "ToolTipBase": "#ffffff",
+                "ToolTipText": "#ffffff",
+                "Text": "#ffffff",
+                "Button": "#353535",
+                "ButtonText": "#ffffff",
+                "BrightText": "#ff0000",
+                "Link": "#2a82da",
+                "Highlight": "#4bb679",
+                "HighlightedText": "#ffffff"
+            },
+            "background_image_base64": ""
+        }
+
+        # Step 1: Ensure the themes folder exists
+        if not os.path.exists(themes_folder):
+            print(f"Creating folder: {themes_folder}")
+            os.makedirs(themes_folder)
+        else:
+            print(f"Folder already exists: {themes_folder}")
+
+        # Step 2: Ensure Dark.json exists
+        if not os.path.isfile(dark_theme_file):
+            print(f"Creating file: {dark_theme_file}")
+            with open(dark_theme_file, "w", encoding="utf-8") as file:
+                json.dump(dark_theme_content, file, indent=2)
+            print("Dark.json has been created successfully.")
+        else:
+            print(f"File already exists: {dark_theme_file}")
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
@@ -40,16 +149,35 @@ class PicomcVersionSelector(QWidget):
         else:
             self.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
 
-
         self.setGeometry(100, 100, 400, 250)
 
-        # Set application style and palette
+        # Set application style and theme
         QApplication.setStyle("Fusion")
-        self.check_config_file()
-        palette_type = self.config.get("Palette", "Dark")
-        palette = self.get_palette(palette_type)
-        QApplication.instance().setPalette(palette)
-        
+        with open("config.json", "r") as config_file:
+            config = json.load(config_file)
+
+        if config.get("ThemeBackground", False):  # Default to False if ThemeBackground is missing
+            # Get the base64 string for the background image from the theme file
+            theme_background_base64 = self.theme.get("background_image_base64", "")
+            if theme_background_base64:
+                try:
+                    # Decode the base64 string and create a QPixmap
+                    background_image_data = QByteArray.fromBase64(theme_background_base64.encode())
+                    pixmap = QPixmap()
+                    if pixmap.loadFromData(background_image_data):
+                        self.setAutoFillBackground(True)
+                        palette = self.palette()
+                        palette.setBrush(QPalette.Window, QBrush(pixmap.scaled(
+                            self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
+                        )))
+                        self.setPalette(palette)
+                    else:
+                        print("Error: Failed to load background image from base64 string.")
+                except Exception as e:
+                    print(f"Error: Failed to decode and set background image. {e}")
+            else:
+                print("No background image base64 string found in the theme file.")
+
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
@@ -135,77 +263,336 @@ class PicomcVersionSelector(QWidget):
             "IsRCPenabled": False,
             "CheckUpdate": False,
             "LastPlayed": "",
-            "Palette": "Dark"
+            "Theme": "Dark.json",
+            "ThemeBackground": True,
+            "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"
         }
 
-        # Check if config file exists
+        # Step 1: Check if the file exists; if not, create it with default values
         if not os.path.exists(config_path):
-            # Create config file with default values
             with open(config_path, "w") as config_file:
                 json.dump(default_config, config_file, indent=4)
-            self.check_config_file()
+            self.config = default_config
+            return
 
+        # Step 2: Try loading the config file, handle invalid JSON
+        try:
+            with open(config_path, "r") as config_file:
+                self.config = json.load(config_file)
+        except (json.JSONDecodeError, ValueError):
+            # File is corrupted, overwrite it with default configuration
+            with open(config_path, "w") as config_file:
+                json.dump(default_config, config_file, indent=4)
+            self.config = default_config
+            return
 
-        # Load config from file
-        with open(config_path, "r") as config_file:
-            self.config = json.load(config_file)
+        # Step 3: Check for missing keys and add defaults if necessary
+        updated = False
+        for key, value in default_config.items():
+            if key not in self.config:  # Field is missing
+                self.config[key] = value
+                updated = True
+
+        # Step 4: Save the repaired config back to the file
+        if updated:
+            with open(config_path, "w") as config_file:
+                json.dump(self.config, config_file, indent=4)
 
     def open_settings_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Settings')
-        dialog.setFixedSize(300, 250)
 
-        # Create title label
+        # Make the window resizable
+        dialog.setMinimumSize(400, 300)
+
+        # Create a Tab Widget
+        tab_widget = QTabWidget()
+
+        # Create the Settings Tab
+        settings_tab = QWidget()
+        settings_layout = QVBoxLayout()
+
         title_label = QLabel('Settings')
         title_label.setFont(QFont("Arial", 14))
 
-        # Add settings components here...
-        layout = QVBoxLayout()
-        layout.addWidget(title_label)
-
-        # Create checkboxes
+        # Create checkboxes for settings tab
         discord_rcp_checkbox = QCheckBox('Discord RPC')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
+
         check_updates_checkbox = QCheckBox('Check Updates on Start')
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
-        # Add checkboxes to layout
-        layout.addWidget(discord_rcp_checkbox)
-        layout.addWidget(check_updates_checkbox)
+        settings_layout.addWidget(title_label)
+        settings_layout.addWidget(discord_rcp_checkbox)
+        settings_layout.addWidget(check_updates_checkbox)
 
-        # Create theme dropdown
-        theme_label = QLabel('Theme:')
-        layout.addWidget(theme_label)
-
-        theme_combobox = QComboBox()
-        themes = ['Dark', 'Obsidian', 'Redstone', 'Alpha', 'Strawberry', "Native", "Christmas"]  # Replace with your actual themes
-        theme_combobox.addItems(themes)
-        current_theme_index = themes.index(self.config.get("Palette", "Default Theme"))
-        theme_combobox.setCurrentIndex(current_theme_index)
-        layout.addWidget(theme_combobox)
-
-        # Create Save button
-        save_button = QPushButton('Save')
-        save_button.clicked.connect(lambda: self.save_settings(discord_rcp_checkbox.isChecked(), check_updates_checkbox.isChecked(), theme_combobox.currentText()))
-        layout.addWidget(save_button)
-
-        # Create Check for updates button
+        # Add buttons in the settings tab
         update_button = QPushButton('Check for updates')
         update_button.clicked.connect(self.check_for_update)
-        layout.addWidget(update_button)
 
-        # Create Open game directory button
         open_game_directory_button = QPushButton('Open game directory')
         open_game_directory_button.clicked.connect(self.open_game_directory)
-        layout.addWidget(open_game_directory_button)
 
-        # Create "Stats for Nerds" button
         stats_button = QPushButton('Stats for Nerds')
         stats_button.clicked.connect(self.show_system_info)
-        layout.addWidget(stats_button)
+
+        settings_layout.addWidget(update_button)
+        settings_layout.addWidget(open_game_directory_button)
+        settings_layout.addWidget(stats_button)
+
+        settings_tab.setLayout(settings_layout)
+
+        # Create the Customization Tab
+        customization_tab = QWidget()
+        customization_layout = QVBoxLayout()
+
+        # Create theme background checkbox for customization tab
+        theme_background_checkbox = QCheckBox('Theme Background')
+        theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
+
+        # Label to show currently selected theme
+        theme_filename = self.config.get('Theme', 'Default.json')
+        current_theme_label = QLabel(f"Current Theme: {theme_filename}")
+
+        # QListWidget to display available themes
+        json_files_label = QLabel('Available Themes:')
+        json_files_list_widget = QListWidget()
+
+        # Track selected theme
+        self.selected_theme = theme_filename  # Default to current theme
+
+        # Path to themes folder
+        themes_folder = os.path.join(os.getcwd(), "themes")
+        
+        def populate_themes():
+            json_files_list_widget.clear()
+            if os.path.exists(themes_folder):
+                json_files = [f for f in os.listdir(themes_folder) if f.endswith('.json')]
+                for json_file in json_files:
+                    json_path = os.path.join(themes_folder, json_file)
+                    with open(json_path, 'r') as file:
+                        theme_data = json.load(file)
+
+                        # Get manifest details
+                        manifest = theme_data.get("manifest", {})
+                        name = manifest.get("name", "Unnamed")
+                        description = manifest.get("description", "No description available")
+                        author = manifest.get("author", "Unknown")
+
+                        # Create display text and list item
+                        display_text = f"#{name}\n{description}\nBy: {author}"
+                        list_item = QListWidgetItem(display_text)
+                        list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
+                        json_files_list_widget.addItem(list_item)
+
+        # Initially populate themes
+        populate_themes()
+
+        # Update current theme label when a theme is selected
+        def on_theme_selected():
+            selected_item = json_files_list_widget.currentItem()
+            if selected_item:
+                self.selected_theme = selected_item.data(Qt.UserRole)
+                current_theme_label.setText(f"Current Theme: {self.selected_theme}")
+
+        json_files_list_widget.itemClicked.connect(on_theme_selected)
+
+        # Add widgets to the layout
+        customization_layout.addWidget(theme_background_checkbox)
+        customization_layout.addWidget(current_theme_label)
+        customization_layout.addWidget(json_files_label)
+        customization_layout.addWidget(json_files_list_widget)
+
+        # Button to download themes
+        download_themes_button = QPushButton("Download Themes")
+        download_themes_button.clicked.connect(self.download_themes_window)
+
+        customization_layout.addWidget(download_themes_button)
+
+        customization_tab.setLayout(customization_layout)
+
+        # Add the tabs to the TabWidget
+        tab_widget.addTab(settings_tab, "Settings")
+        tab_widget.addTab(customization_tab, "Customization")
+
+        # Save button
+        save_button = QPushButton('Save')
+        save_button.clicked.connect(
+            lambda: self.save_settings(
+                discord_rcp_checkbox.isChecked(),
+                check_updates_checkbox.isChecked(),
+                theme_background_checkbox.isChecked(),
+                self.selected_theme  # Pass the selected theme here
+            )
+        )
+
+        # Main layout
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(tab_widget)
+        main_layout.addWidget(save_button)
+
+        dialog.setLayout(main_layout)
+        dialog.exec_()
+
+        ## REPOSITORY BLOCK BEGGINS
+
+    def download_themes_window(self):
+        # Create a QDialog to open the themes window
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Themes Repository")
+        dialog.setGeometry(100, 100, 400, 300)
+
+        # Layout setup for the new window
+        layout = QVBoxLayout()
+
+        # List widget to display themes
+        self.theme_list = QListWidget(dialog)
+        self.theme_list.setSelectionMode(QListWidget.SingleSelection)
+        self.theme_list.clicked.connect(self.on_theme_click)
+        layout.addWidget(self.theme_list)
+
+        # Label to display the details of the selected theme
+        self.details_label = QLabel(dialog)  # Define the label here
+        layout.addWidget(self.details_label)
+
+        # Download button to download the selected theme's JSON
+        download_button = QPushButton("Download Theme", dialog)
+        download_button.clicked.connect(self.theme_download)
+        layout.addWidget(download_button)
 
         dialog.setLayout(layout)
-        dialog.exec_()
+
+        # Initially load themes into the list
+        self.load_themes()
+
+        dialog.exec_()  # Open the dialog as a modal window
+
+    def fetch_themes(self):
+        try:
+            # Read the config.json file
+            with open("config.json", "r") as config_file:
+                config = json.load(config_file)
+            
+            # Get the ThemeRepository value
+            url = config.get("ThemeRepository")
+            if not url:
+                raise ValueError("ThemeRepository is not defined in config.json")
+
+            # Fetch themes from the specified URL
+            response = requests.get(url)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            return response.json()
+        except (FileNotFoundError, json.JSONDecodeError) as config_error:
+            self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
+            return {}
+        except requests.exceptions.RequestException as fetch_error:
+            self.show_error_popup("Error fetching themes", f"An error occurred while fetching themes: {fetch_error}")
+            return {}
+        except ValueError as value_error:
+            self.show_error_popup("Configuration Error", str(value_error))
+            return {}
+
+    def download_theme_json(self, theme_url, theme_name):
+        try:
+            response = requests.get(theme_url)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+            # Create the themes directory if it doesn't exist
+            if not os.path.exists('themes'):
+                os.makedirs('themes')
+
+            # Save the content of the theme JSON file to the 'themes' folder
+            theme_filename = os.path.join('themes', f'{theme_name}.json')
+            with open(theme_filename, 'wb') as f:
+                f.write(response.content)
+            print(f"Downloaded {theme_name} theme to {theme_filename}")
+        except requests.exceptions.RequestException as e:
+            self.show_error_popup("Error downloading theme", f"An error occurred while downloading {theme_name}: {e}")
+
+    def show_error_popup(self, title, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle(title)
+        msg.setText(message)
+        msg.exec_()
+
+    def is_theme_installed(self, theme_name):
+        return os.path.exists(os.path.join('themes', f'{theme_name}.json'))
+
+    def load_themes(self):
+        theme_list = self.theme_list
+        themes_data = self.fetch_themes()
+        themes = themes_data.get("themes", [])
+
+        theme_list.clear()
+        for theme in themes:
+            # Add "[I]" if the theme is installed
+            theme_display_name = f"{theme['name']} by {theme['author']}"
+            if self.is_theme_installed(theme['name']):
+                theme_display_name += " [I]"  # Mark installed themes
+            theme_list.addItem(theme_display_name)
+
+    def on_theme_click(self):
+        selected_item = self.theme_list.currentItem()
+        if selected_item:
+            theme_name = selected_item.text().split(" by ")[0]
+            theme = self.find_theme_by_name(theme_name)
+            if theme:
+                # Display theme details in the QLabel (details_label)
+                self.details_label.setText(
+                    f"Name: {theme['name']}\n"
+                    f"Description: {theme['description']}\n"
+                    f"Author: {theme['author']}\n"
+                    f"License: {theme['license']}\n"
+                    f"Link: {theme['link']}"
+                )
+
+    def find_theme_by_name(self, theme_name):
+        themes_data = self.fetch_themes()
+        themes = themes_data.get("themes", [])
+        for theme in themes:
+            if theme["name"] == theme_name:
+                return theme
+        return None
+
+    def theme_download(self):
+        selected_item = self.theme_list.currentItem()
+        if selected_item:
+            theme_name = selected_item.text().split(" by ")[0]
+            theme = self.find_theme_by_name(theme_name)
+            if theme:
+                theme_url = theme["link"]
+                self.download_theme_json(theme_url, theme_name)
+                self.load_themes()  # Reload the list to show the "[I]" marker
+
+
+
+
+        ## REPOSITORY BLOCK ENDS
+
+
+    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme):
+        config_path = "config.json"
+        updated_config = {
+            "IsRCPenabled": is_rcp_enabled,
+            "CheckUpdate": check_updates_on_start,
+            "ThemeBackground": theme_background,
+            "Theme": selected_theme
+        }
+
+        # Update config values
+        self.config.update(updated_config)
+
+        # Save updated config to file
+        with open(config_path, "w") as config_file:
+            json.dump(self.config, config_file, indent=4)
+
+        QMessageBox.information(
+            self, 
+            "Settings Saved", 
+            "Settings saved successfully!\n\nTo apply the changes, please restart the launcher."
+        )
+        self.__init__()
 
     def get_palette(self, palette_type):
         """Retrieve the corresponding palette based on the palette type."""
@@ -269,23 +656,6 @@ class PicomcVersionSelector(QWidget):
         except subprocess.CalledProcessError as e:
             print(f"Error running picomc command: {e}")
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start, selected_theme):
-        config_path = "config.json"
-        updated_config = {
-            "IsRCPenabled": is_rcp_enabled,
-            "CheckUpdate": check_updates_on_start,
-            "Palette": selected_theme
-        }
-
-        # Update config values
-        self.config.update(updated_config)
-
-        # Save updated config to file
-        with open(config_path, "w") as config_file:
-            json.dump(self.config, config_file, indent=4)
-
-        QMessageBox.information(self, "Settings Saved", "Settings saved successfully!\n\n to them to be applyed you need to restart the launcher")
-        self.__init__()
 
     def populate_installed_versions(self):
         config_path = "config.json"
@@ -630,121 +1000,6 @@ class PicomcVersionSelector(QWidget):
             "Olinad: Christmas!!!!"
         )
         QMessageBox.about(self, "About", about_message)
-
-    def create_dark_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        palette.setColor(QPalette.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(75 , 182, 121))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        return palette
-
-    def create_obsidian_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#1c1c1c"))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor("#1c1c1c"))
-        palette.setColor(QPalette.AlternateBase, QColor("#1c1c1c"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#1c1c1c"))
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor("#1c1c1c"))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor("#6a0dad"))
-        palette.setColor(QPalette.Highlight, QColor("#6200EE"))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        return palette
-
-    def create_redstone_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        palette.setColor(QPalette.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(255 , 0, 0))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        return palette
-
-
-    def create_alpha_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#31363b"))
-        palette.setColor(QPalette.WindowText, Qt.white)
-        palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.AlternateBase, QColor("#31363b"))
-        palette.setColor(QPalette.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ToolTipText, Qt.white)
-        palette.setColor(QPalette.Text, Qt.white)
-        palette.setColor(QPalette.Button, QColor("#31363b"))
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
-        return palette
-
-    def create_strawberry_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#fce8e6"))
-        palette.setColor(QPalette.WindowText, Qt.black)
-        palette.setColor(QPalette.Base, QColor("#f8d7d5"))
-        palette.setColor(QPalette.AlternateBase, QColor("#fce8e6"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#f8d7d5"))
-        palette.setColor(QPalette.ToolTipText, Qt.black)
-        palette.setColor(QPalette.Text, Qt.black)
-        palette.setColor(QPalette.Button, QColor("#fce8e6"))
-        palette.setColor(QPalette.ButtonText, Qt.black)
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor("#ff4d4d"))
-        palette.setColor(QPalette.Highlight, QColor("#ff8080"))
-        palette.setColor(QPalette.HighlightedText, Qt.black)
-        return palette
-
-    def create_native_palette(self):
-        palette = QPalette()
-        return palette
-
-    def create_christmas_palette(self):
-        palette = QPalette()
-        # I know is shitty ok
-        # Background colors
-        palette.setColor(QPalette.Window, QColor(34, 49, 34))  # Deep evergreen
-        palette.setColor(QPalette.WindowText, QColor(210, 255, 210))  # Soft, frosty green text
-        palette.setColor(QPalette.Base, QColor(17, 34, 17))  # Dark forest green
-        palette.setColor(QPalette.AlternateBase, QColor(25, 51, 25))  # Slightly lighter green for contrast
-        palette.setColor(QPalette.ToolTipBase, QColor(245, 255, 245))  # Light green for tooltips
-        palette.setColor(QPalette.ToolTipText, QColor(34, 139, 34))  # Vibrant green for tooltip text
-        
-        # Text colors
-        palette.setColor(QPalette.Text, QColor(245, 255, 245))  # Light green for standard text
-        palette.setColor(QPalette.Button, QColor(0, 100, 0))  # Dark green for buttons
-        palette.setColor(QPalette.ButtonText, QColor(245, 255, 245))  # Light green button text
-        palette.setColor(QPalette.BrightText, QColor(60, 179, 113))  # Bright mint green for emphasis
-        palette.setColor(QPalette.Link, QColor(42, 130, 218))  # Blue links for contrast
-        
-        # Highlight colors
-        palette.setColor(QPalette.Highlight, QColor(0, 128, 0))  # Rich pine green highlight
-        palette.setColor(QPalette.HighlightedText, QColor(245, 255, 245))  # Light green text on highlights
-
-        return palette
-
 
     def check_for_update_start(self):
         try:
