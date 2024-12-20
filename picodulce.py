@@ -94,6 +94,14 @@ class PicomcVersionSelector(QWidget):
         # Apply the palette to the application
         app.setPalette(palette)
 
+        # Apply style sheet if present
+        if "stylesheet" in self.theme:
+            stylesheet = self.theme["stylesheet"]
+            app.setStyleSheet(stylesheet)
+        else:
+            print("No 'stylesheet' section found in the theme file.")
+
+
     def themes_integrity(self):
         # Define folder and file paths
         themes_folder = "themes"
