@@ -50,8 +50,15 @@ class PicomcVersionSelector(QWidget):
             discord_rcp_thread.start()
 
     def load_theme_from_file(self, file_path, app):
+        self.theme = {}
+        # Check if the file exists, else load 'Dark.json'
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Theme file '{file_path}' not found.")
+            print(f"Theme file '{file_path}' not found. Loading default 'Dark.json' instead.")
+            file_path = "themes/Dark.json"
+
+            # Ensure the fallback file exists
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Default theme file '{file_path}' not found.")
 
         # Open and parse the JSON file
         with open(file_path, "r") as file:
@@ -81,7 +88,7 @@ class PicomcVersionSelector(QWidget):
             "BrightText": QPalette.BrightText,
             "Link": QPalette.Link,
             "Highlight": QPalette.Highlight,
-            "HighlightedText": QPalette.HighlightedText
+            "HighlightedText": QPalette.HighlightedText,
         }
 
         # Apply colors from the palette config
@@ -101,11 +108,11 @@ class PicomcVersionSelector(QWidget):
         else:
             print("No 'stylesheet' section found in the theme file.")
 
-
     def themes_integrity(self):
         # Define folder and file paths
         themes_folder = "themes"
         dark_theme_file = os.path.join(themes_folder, "Dark.json")
+        native_theme_file = os.path.join(themes_folder, "Native.json")
 
         # Define the default content for Dark.json
         dark_theme_content = {
@@ -133,6 +140,17 @@ class PicomcVersionSelector(QWidget):
             "background_image_base64": ""
         }
 
+        # Define the default content for Native.json
+        native_theme_content = {
+            "manifest": {
+                "name": "Native",
+                "description": "The native looks of your OS",
+                "author": "Your Qt Style",
+                "license": "Any"
+            },
+            "palette": {}
+        }
+
         # Step 1: Ensure the themes folder exists
         if not os.path.exists(themes_folder):
             print(f"Creating folder: {themes_folder}")
@@ -148,6 +166,16 @@ class PicomcVersionSelector(QWidget):
             print("Dark.json has been created successfully.")
         else:
             print(f"File already exists: {dark_theme_file}")
+
+        # Step 3: Ensure Native.json exists
+        if not os.path.isfile(native_theme_file):
+            print(f"Creating file: {native_theme_file}")
+            with open(native_theme_file, "w", encoding="utf-8") as file:
+                json.dump(native_theme_content, file, indent=2)
+            print("Native.json has been created successfully.")
+        else:
+            print(f"File already exists: {native_theme_file}")
+
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
