@@ -36,8 +36,8 @@
 
 - **Version Management**: Picodulce is designed to download and launch all available game versions, ensuring users have easy access to the latest updates as well as older versions.
 - **Offline and Online Support**: Whether you're connected to Microsoft or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
-- **Integrated Mod Manager**: The latest update includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods.
-
+- **Integrated Mod Manager**: Includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods and texturepacks.
+- **Custom Theme Support**: Create and apply personalized themes with ease. A dedicated repository and guide are [available to help you get started.](https://github.com/nixietab/picodulce-themes)
 
 
 ### About the name
