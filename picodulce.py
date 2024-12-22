@@ -352,7 +352,7 @@ class PicomcVersionSelector(QWidget):
         title_label.setFont(QFont("Arial", 14))
 
         # Create checkboxes for settings tab
-        discord_rcp_checkbox = QCheckBox('Discord RPC')
+        discord_rcp_checkbox = QCheckBox('Discord Rich Presence')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
 
         check_updates_checkbox = QCheckBox('Check Updates on Start')
@@ -391,7 +391,7 @@ class PicomcVersionSelector(QWidget):
         current_theme_label = QLabel(f"Current Theme: {theme_filename}")
 
         # QListWidget to display available themes
-        json_files_label = QLabel('Available Themes:')
+        json_files_label = QLabel('Installed Themes:')
         json_files_list_widget = QListWidget()
 
         # Track selected theme
@@ -440,7 +440,7 @@ class PicomcVersionSelector(QWidget):
         customization_layout.addWidget(json_files_list_widget)
 
         # Button to download themes
-        download_themes_button = QPushButton("Download Themes")
+        download_themes_button = QPushButton("Download More Themes")
         download_themes_button.clicked.connect(self.download_themes_window)
 
         customization_layout.addWidget(download_themes_button)
