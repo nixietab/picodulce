@@ -387,7 +387,7 @@ class PicomcVersionSelector(QWidget):
         theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
 
         # Label to show currently selected theme
-        theme_filename = self.config.get('Theme', 'Default.json')
+        theme_filename = self.config.get('Theme', 'Dark.json')
         current_theme_label = QLabel(f"Current Theme: {theme_filename}")
 
         # QListWidget to display available themes
@@ -397,41 +397,13 @@ class PicomcVersionSelector(QWidget):
         # Track selected theme
         self.selected_theme = theme_filename  # Default to current theme
 
-        # Path to themes folder
-        themes_folder = os.path.join(os.getcwd(), "themes")
-        
-        def populate_themes():
-            json_files_list_widget.clear()
-            if os.path.exists(themes_folder):
-                json_files = [f for f in os.listdir(themes_folder) if f.endswith('.json')]
-                for json_file in json_files:
-                    json_path = os.path.join(themes_folder, json_file)
-                    with open(json_path, 'r') as file:
-                        theme_data = json.load(file)
-
-                        # Get manifest details
-                        manifest = theme_data.get("manifest", {})
-                        name = manifest.get("name", "Unnamed")
-                        description = manifest.get("description", "No description available")
-                        author = manifest.get("author", "Unknown")
-
-                        # Create display text and list item
-                        display_text = f"#{name}\n{description}\nBy: {author}"
-                        list_item = QListWidgetItem(display_text)
-                        list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
-                        json_files_list_widget.addItem(list_item)
-
-        # Initially populate themes
-        populate_themes()
+        # Populate themes initially
+        self.populate_themes(json_files_list_widget)
 
         # Update current theme label when a theme is selected
-        def on_theme_selected():
-            selected_item = json_files_list_widget.currentItem()
-            if selected_item:
-                self.selected_theme = selected_item.data(Qt.UserRole)
-                current_theme_label.setText(f"Current Theme: {self.selected_theme}")
-
-        json_files_list_widget.itemClicked.connect(on_theme_selected)
+        json_files_list_widget.itemClicked.connect(
+            lambda: self.on_theme_selected(json_files_list_widget, current_theme_label)
+        )
 
         # Add widgets to the layout
         customization_layout.addWidget(theme_background_checkbox)
@@ -470,6 +442,51 @@ class PicomcVersionSelector(QWidget):
         dialog.setLayout(main_layout)
         dialog.exec_()
 
+    def populate_themes(self, json_files_list_widget):
+        themes_folder = os.path.join(os.getcwd(), "themes")
+        json_files_list_widget.clear()
+        if os.path.exists(themes_folder):
+            json_files = [f for f in os.listdir(themes_folder) if f.endswith('.json')]
+            for json_file in json_files:
+                json_path = os.path.join(themes_folder, json_file)
+                with open(json_path, 'r') as file:
+                    theme_data = json.load(file)
+
+                    # Get manifest details
+                    manifest = theme_data.get("manifest", {})
+                    name = manifest.get("name", "Unnamed")
+                    description = manifest.get("description", "No description available")
+                    author = manifest.get("author", "Unknown")
+
+                    # Create display text and list item
+                    display_text = f"{name}\n{description}\nBy: {author}"
+                    list_item = QListWidgetItem(display_text)
+                    list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
+
+                    # Style the name in bold
+                    font = QFont()
+                    font.setBold(False)
+                    list_item.setFont(font)
+
+                    json_files_list_widget.addItem(list_item)
+
+        # Apply spacing and styling to the list
+        json_files_list_widget.setStyleSheet("""
+            QListWidget {
+                padding: 1px;
+            }
+            QListWidget::item {
+                margin: 3px 0;
+                padding: 3px;
+            }
+        """)
+
+    def on_theme_selected(self, json_files_list_widget, current_theme_label):
+        selected_item = json_files_list_widget.currentItem()
+        if selected_item:
+            self.selected_theme = selected_item.data(Qt.UserRole)
+            current_theme_label.setText(f"Current Theme: {self.selected_theme}")
+
         ## REPOSITORY BLOCK BEGGINS
 
     def download_themes_window(self):
@@ -500,7 +517,7 @@ class PicomcVersionSelector(QWidget):
 
         # Initially load themes into the list
         self.load_themes()
-
+        dialog.finished.connect(self.populate_themes)
         dialog.exec_()  # Open the dialog as a modal window
 
     def fetch_themes(self):
