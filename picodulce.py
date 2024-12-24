@@ -517,7 +517,6 @@ class PicomcVersionSelector(QWidget):
 
         # Initially load themes into the list
         self.load_themes()
-        dialog.finished.connect(self.populate_themes)
         dialog.exec_()  # Open the dialog as a modal window
 
     def fetch_themes(self):
@@ -577,13 +576,22 @@ class PicomcVersionSelector(QWidget):
         themes_data = self.fetch_themes()
         themes = themes_data.get("themes", [])
 
-        theme_list.clear()
+        # Separate themes into installed and uninstalled
+        installed_themes = []
+        uninstalled_themes = []
+
         for theme in themes:
-            # Add "[I]" if the theme is installed
             theme_display_name = f"{theme['name']} by {theme['author']}"
             if self.is_theme_installed(theme['name']):
                 theme_display_name += " [I]"  # Mark installed themes
-            theme_list.addItem(theme_display_name)
+                installed_themes.append(theme_display_name)
+            else:
+                uninstalled_themes.append(theme_display_name)
+
+        # Clear the list and add uninstalled themes first, then installed ones
+        theme_list.clear()
+        theme_list.addItems(uninstalled_themes)
+        theme_list.addItems(installed_themes)
 
     def on_theme_click(self):
         selected_item = self.theme_list.currentItem()
@@ -617,9 +625,6 @@ class PicomcVersionSelector(QWidget):
                 theme_url = theme["link"]
                 self.download_theme_json(theme_url, theme_name)
                 self.load_themes()  # Reload the list to show the "[I]" marker
-
-
-
 
         ## REPOSITORY BLOCK ENDS
 
