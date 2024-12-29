@@ -299,6 +299,7 @@ class PicomcVersionSelector(QWidget):
             "IsRCPenabled": False,
             "CheckUpdate": False,
             "LastPlayed": "",
+            "Instance": "default",
             "Theme": "Dark.json",
             "ThemeBackground": True,
             "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"
@@ -825,12 +826,18 @@ class PicomcVersionSelector(QWidget):
         try:
             # Set current_state to the selected instance
             self.current_state = selected_instance
+
+            # Read the config.json to get the "Instance" value
+            with open('config.json', 'r') as config_file:
+                config = json.load(config_file)
+                instance_value = config.get("Instance", "default")  # Default to "default" if not found
+
             # Update lastplayed field in config.json on a separate thread
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
 
-            # Run the game subprocess
-            subprocess.run(['picomc', 'play', selected_instance], check=True)
+            # Run the game subprocess with the instance_value from config.json
+            subprocess.run(['picomc', 'instance', 'launch', '--version-override', selected_instance, instance_value], check=True)
 
         except subprocess.CalledProcessError as e:
             error_message = f"Error playing {selected_instance}: {e}"
@@ -843,7 +850,7 @@ class PicomcVersionSelector(QWidget):
         finally:
             # Reset current_state to "menu" after the game closes
             self.current_state = "menu"
-
+            
     def update_last_played(self, selected_instance):
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
@@ -1235,15 +1242,194 @@ class ModLoaderAndVersionMenu(QDialog):
         # Create tabs
         install_mod_tab = QWidget()
         download_version_tab = QWidget()
+        instances_tab = QWidget()  # New tab for instances
 
         tab_widget.addTab(download_version_tab, "Download Version")
         tab_widget.addTab(install_mod_tab, "Install Mod Loader")
+        tab_widget.addTab(instances_tab, "Instances")  # Add the new tab
 
         # Add content to "Install Mod Loader" tab
         self.setup_install_mod_loader_tab(install_mod_tab)
 
         # Add content to "Download Version" tab
         self.setup_download_version_tab(download_version_tab)
+
+        # Add content to "Instances" tab
+        self.setup_instances_tab(instances_tab)
+
+    def setup_instances_tab(self, instances_tab):
+        layout = QVBoxLayout(instances_tab)
+
+        # Create title label
+        title_label = QLabel('Current Instance:')
+        title_label.setFont(QFont("Arial", 14))
+        layout.addWidget(title_label)
+
+        # Create a label to display the current instance
+        self.current_instance_label = QLabel('Loading...')  # Placeholder text
+        layout.addWidget(self.current_instance_label)
+
+        # Create a QListWidget to display the instances
+        self.instances_list_widget = QListWidget()
+        layout.addWidget(self.instances_list_widget)
+
+        # Create input field and button to create a new instance
+        self.create_instance_input = QLineEdit()
+        self.create_instance_input.setPlaceholderText("Enter instance name")
+        layout.addWidget(self.create_instance_input)
+
+        create_instance_button = QPushButton("Create Instance")
+        create_instance_button.clicked.connect(self.create_instance)
+        layout.addWidget(create_instance_button)
+
+        # Create button to delete an instance
+        delete_instance_button = QPushButton("Delete Instance")
+        delete_instance_button.clicked.connect(self.delete_instance)
+        layout.addWidget(delete_instance_button)
+
+        # Fetch and display the current instances
+        self.load_instances()
+
+        # Connect the item selection to the instance selection method
+        self.instances_list_widget.itemClicked.connect(self.on_instance_selected)
+
+        # Update the label with the current instance from the config
+        self.update_instance_label()
+
+    def create_instance(self):
+        instance_name = self.create_instance_input.text().strip()
+
+        if instance_name:
+            try:
+                # Run the "picomc instance create" command
+                process = subprocess.Popen(['picomc', 'instance', 'create', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                output, error = process.communicate()
+
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, process.args, error)
+
+                # Notify the user that the instance was created
+                QMessageBox.information(self, "Instance Created", f"Instance '{instance_name}' has been created successfully.")
+
+                # Reload the instances list
+                self.load_instances()
+
+                # Optionally select the newly created instance
+                self.on_instance_selected(self.instances_list_widget.item(self.instances_list_widget.count() - 1))
+
+            except FileNotFoundError:
+                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            except subprocess.CalledProcessError as e:
+                logging.error("Error creating instance: %s", e.stderr)
+                QMessageBox.critical(self, "Error", f"Failed to create instance: {e.stderr}")
+        else:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
+
+    def delete_instance(self):
+        # Get the selected instance name
+        selected_instance = self.instances_list_widget.currentItem()
+
+        if selected_instance:
+            instance_name = selected_instance.text()
+
+            # Prevent deletion of the "default" instance
+            if instance_name == "default":
+                QMessageBox.warning(self, "Cannot Delete Instance", "You cannot delete the 'default' instance.")
+                return
+
+            confirm_delete = QMessageBox.question(
+                self, "Confirm Deletion", f"Are you sure you want to delete the instance '{instance_name}'?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+
+            if confirm_delete == QMessageBox.Yes:
+                try:
+                    # Run the "picomc instance delete" command
+                    process = subprocess.Popen(['picomc', 'instance', 'delete', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    output, error = process.communicate()
+
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, process.args, error)
+
+                    # Notify the user that the instance was deleted
+                    QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
+
+                    # Reload the instances list
+                    self.load_instances()
+
+                except FileNotFoundError:
+                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                except subprocess.CalledProcessError as e:
+                    logging.error("Error deleting instance: %s", e.stderr)
+                    QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
+        else:
+            QMessageBox.warning(self, "No Selection", "Please select an instance to delete.")
+
+    def load_instances(self):
+        try:
+            process = subprocess.Popen(['picomc', 'instance', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+
+            # Parse the output and add each instance to the list widget
+            instances = output.splitlines()
+            self.instances_list_widget.clear()  # Clear the previous list
+            self.instances_list_widget.addItems(instances)
+
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+        except subprocess.CalledProcessError as e:
+            logging.error("Error fetching instances: %s", e.stderr)
+
+    def on_instance_selected(self, item):
+        # Get the selected instance name
+        selected_instance = item.text()
+
+        # Path to the config.json file
+        config_file = 'config.json'
+
+        # Check if the config file exists
+        if os.path.exists(config_file):
+            try:
+                # Load the current config.json file
+                with open(config_file, 'r') as file:
+                    config_data = json.load(file)
+
+                # Update the "Instance" value with the selected instance name
+                config_data['Instance'] = selected_instance
+
+                # Save the updated config back to the file
+                with open(config_file, 'w') as file:
+                    json.dump(config_data, file, indent=4)
+
+                logging.info(f"Config updated: Instance set to {selected_instance}")
+
+                # Update the label with the new instance
+                self.update_instance_label()
+
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                logging.error(f"Error reading config.json: {e}")
+        else:
+            logging.warning(f"{config_file} not found. Unable to update instance.")
+
+    def update_instance_label(self):
+        config_file = 'config.json'
+
+        if os.path.exists(config_file):
+            try:
+                # Load the config file
+                with open(config_file, 'r') as file:
+                    config_data = json.load(file)
+
+                # Get the current instance from the config and update the label
+                current_instance = config_data.get('Instance', 'Not set')
+                self.current_instance_label.setText(f'Current instance: {current_instance}')
+
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                logging.error(f"Error reading config.json: {e}")
+        else:
+            self.current_instance_label.setText('Current instance: Not set')
 
     def setup_install_mod_loader_tab(self, install_mod_tab):
         layout = QVBoxLayout(install_mod_tab)
