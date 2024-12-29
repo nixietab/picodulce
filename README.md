@@ -38,7 +38,7 @@
 - **Offline and Online Support**: Whether you're connected to Microsoft or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
 - **Integrated Mod Manager**: Includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods and texturepacks.
 - **Custom Theme Support**: Create and apply personalized themes with ease. A dedicated repository and guide are [available to help you get started.](https://github.com/nixietab/picodulce-themes)
-
+-- **Instance Support**: Allows users to create and manage multiple game instances, each with its own configuration, mods, and settings
 # Installation
 If you are on windows you may be more interested in a [installer](https://github.com/nixietab/2hsu/releases/download/release/2hsu.exe)
 
