@@ -2,11 +2,11 @@
   "version": "0.11.3",
   "name": "Mysterious Axolotl",
   "links": [
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/picodulce.py",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/requirements.txt",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/drums.gif",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/marroc.py",
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/holiday.ico"
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/version.json",
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/picodulce.py",
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/requirements.txt",
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/drums.gif",
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/marroc.py",
+    "https://raw.githubusercontent.com/nixietab/picodulce/canary/holiday.ico"
   ]
 }
