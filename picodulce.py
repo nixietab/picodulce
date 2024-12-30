@@ -1282,6 +1282,15 @@ class ModLoaderAndVersionMenu(QDialog):
         create_instance_button.clicked.connect(self.create_instance)
         layout.addWidget(create_instance_button)
 
+        # Create input field and button to rename an instance
+        self.rename_instance_input = QLineEdit()
+        self.rename_instance_input.setPlaceholderText("Enter new instance name")
+        layout.addWidget(self.rename_instance_input)
+
+        rename_instance_button = QPushButton("Rename Instance")
+        rename_instance_button.clicked.connect(self.rename_instance)
+        layout.addWidget(rename_instance_button)
+
         # Create button to delete an instance
         delete_instance_button = QPushButton("Delete Instance")
         delete_instance_button.clicked.connect(self.delete_instance)
@@ -1324,6 +1333,54 @@ class ModLoaderAndVersionMenu(QDialog):
                 QMessageBox.critical(self, "Error", f"Failed to create instance: {e.stderr}")
         else:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
+
+    def rename_instance(self):
+        selected_item = self.instances_list_widget.currentItem()
+
+        if not selected_item:
+            QMessageBox.warning(self, "No Selection", "Please select an instance to rename.")
+            return
+
+        old_instance_name = selected_item.text()
+        new_instance_name = self.rename_instance_input.text().strip()
+
+        if not new_instance_name:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid new instance name.")
+            return
+
+        if old_instance_name == "default":
+            QMessageBox.warning(self, "Cannot Rename Instance", "You cannot rename the 'default' instance.")
+            return
+
+        try:
+            # Run the "picomc instance rename" command
+            process = subprocess.Popen(
+                ['picomc', 'instance', 'rename', old_instance_name, new_instance_name],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            output, error = process.communicate()
+
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+
+            QMessageBox.information(self, "Instance Renamed", f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully.")
+
+            # Reload the instances list
+            self.load_instances()
+
+            # Optionally select the newly renamed instance
+            matching_items = self.instances_list_widget.findItems(new_instance_name, Qt.MatchExactly)
+            if matching_items:
+                self.instances_list_widget.setCurrentItem(matching_items[0])
+
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+        except subprocess.CalledProcessError as e:
+            logging.error("Error renaming instance: %s", e.stderr)
+            QMessageBox.critical(self, "Error", f"Failed to rename instance: {e.stderr}")
+
+
+
 
     def delete_instance(self):
         # Get the selected instance name
