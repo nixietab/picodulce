@@ -2,6 +2,8 @@ name: Version Change Action
 
 on:
   push:
+    branches:
+        - canary
     paths:
       - version.json  # Trigger on changes to version.json
 
