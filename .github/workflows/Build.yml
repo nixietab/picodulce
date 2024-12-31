@@ -34,3 +34,22 @@ jobs:
     - name: Run picoBuild.py script
       run: |
         python actions-temp/picoBuild.py
+
+    - name: Read version and name from version.json
+      id: version
+      run: |
+        VERSION=$(jq -r '.version' version.json)
+        NAME=$(jq -r '.name' version.json)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV  # Store version in the environment variable
+        echo "NAME=$NAME" >> $GITHUB_ENV  # Store name in the environment variable
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: actions-temp/build/2hsu.exe  # Specify the path to the file to upload
+
+    - name: Tag release
+      run: |
+        VERSION_NAME="${VERSION} ${NAME}"
+        git tag -a "v${VERSION}" -m "Release ${VERSION_NAME}"  # Tag the release with version number and name
+        git push origin "v${VERSION}"  # Push the tag to GitHub
