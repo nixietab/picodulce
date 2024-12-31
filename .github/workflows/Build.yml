@@ -35,35 +35,33 @@ jobs:
       run: |
         python actions-temp/picoBuild.py
 
-    - name: Read version and name from version.json
-      id: version
-      run: |
-        VERSION=$(jq -r '.version' version.json)
-        NAME=$(jq -r '.name' version.json)
-        echo "VERSION=$VERSION" >> $GITHUB_ENV  # Store version in the environment variable
-        echo "NAME=$NAME" >> $GITHUB_ENV  # Store name in the environment variable
+  create-release:
+    needs: run-on-version-change  # Run only after the previous job
+    runs-on: windows-latest
 
-    - name: Check if tag exists
-      run: |
-        if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-          echo "Tag v${{ env.VERSION }} already exists, skipping tag creation."
-          exit 0
-        fi
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-    - name: Tag release
-      run: |
-        # Set Git user for the GitHub Actions runner
-        git config user.name "github-actions"
-        git config user.email "github-actions@github.com"
-
-        # Set VERSION_NAME using environment variables
-        echo "VERSION_NAME=${{ env.VERSION }} ${{ env.NAME }}" >> $GITHUB_ENV  # Store the full version name
-
-        # Create the tag and push it to GitHub
-        git tag -a "v${{ env.VERSION }}" -m "Release ${{ env.VERSION }} ${{ env.NAME }}"  # Tag the release
-        git push origin --tags  # Push all tags to GitHub
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
       with:
-        files: actions-temp/build/2hsu.exe  # Specify the path to the file to upload
+        node-version: '16'
+
+    - name: Get version and name from version.json
+      id: version_info
+      run: |
+        $versionJson = Get-Content version.json | ConvertFrom-Json
+        echo "RELEASE_NAME=Release $($versionJson.version)" >> $env:GITHUB_ENV
+        echo "RELEASE_TAG=$($versionJson.version)" >> $env:GITHUB_ENV
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ env.RELEASE_TAG }}
+        release_name: ${{ env.RELEASE_NAME }}
+        body: "This release was created automatically by a GitHub Action."
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
