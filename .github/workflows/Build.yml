@@ -60,6 +60,6 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: actions-temp/build/2hsu.exe
+        asset_path: build/2hsu.exe
         asset_name: 2hsu.exe
         asset_content_type: application/octet-stream
