@@ -65,3 +65,11 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.version_info.outputs.upload_url }}
+        asset_path: actions-temp/build/2hsu.exe
+        asset_name: 2hsu.exe
+        asset_content_type: application/octet-stream
