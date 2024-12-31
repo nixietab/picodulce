@@ -32,9 +32,6 @@ jobs:
     - name: Run picoBuild.py script
       run: python actions-temp/picoBuild.py
 
-    - name: Debug: Show directory structure
-      run: dir actions-temp /s  # Windows equivalent of tree for debugging
-
     - name: Get version and name from version.json
       id: version_info
       run: |
