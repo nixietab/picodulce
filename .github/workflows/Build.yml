@@ -45,9 +45,10 @@ jobs:
 
     - name: Tag release
       run: |
-        VERSION_NAME="${VERSION} ${NAME}"
-        git tag -a "v${VERSION}" -m "Release ${VERSION_NAME}"  # Tag the release with version number and name
-        git push origin "v${VERSION}"  # Push the tag to GitHub
+        $VERSION_NAME = "${env:VERSION} ${env:NAME}"
+        git tag -a "v${env:VERSION}" -m "Release $VERSION_NAME"  # Tag the release with version number and name
+        git push origin "v${env:VERSION}"  # Push the tag to GitHub
+
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
