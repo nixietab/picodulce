@@ -47,7 +47,7 @@ def download_file(url, dest_path):
     print(f"Downloading: {url}")
     response = requests.get(url, stream=True)
     if response.status_code == 200:
-        with open(dest_path, 'wb') as file:
+        with open(dest_path, "wb") as file:
             shutil.copyfileobj(response.raw, file)
         print(f"Downloaded to: {dest_path}")
     else:
@@ -55,7 +55,7 @@ def download_file(url, dest_path):
 
 def extract_zip(zip_path, extract_to):
     print(f"Extracting {zip_path} to {extract_to}")
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(extract_to)
     print(f"Extraction complete")
 
@@ -143,9 +143,9 @@ def compile_with_pyinstaller():
 
 def rename_progress_folder():
     # Check if the "progress" folder exists
-    if os.path.exists('progress'):
+    if os.path.exists("progress"):
         # Rename it to "picodulce"
-        os.rename('progress', 'picodulce')
+        os.rename("progress", "picodulce")
         print("Folder 'progress' has been renamed to 'picodulce'.")
     else:
         print("The 'progress' folder does not exist.")
