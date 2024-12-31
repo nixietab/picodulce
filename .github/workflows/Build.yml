@@ -24,20 +24,16 @@ jobs:
         pip install pyqt5 requests pywin32 pyinstaller pillow  # Install specific dependencies
 
     - name: Create actions-temp folder
-      run: |
-        mkdir actions-temp  # Create the folder called actions-temp
+      run: mkdir actions-temp  # Create the folder called actions-temp
 
     - name: Download picoBuild.py script
-      run: |
-        curl -L -o actions-temp/picoBuild.py https://raw.githubusercontent.com/nixietab/picodulce-build-script/refs/heads/main/picoBuild.py
+      run: curl -L -o actions-temp/picoBuild.py https://raw.githubusercontent.com/nixietab/picodulce-build-script/refs/heads/main/picoBuild.py
 
     - name: Run picoBuild.py script
-      run: |
-        python actions-temp/picoBuild.py
+      run: python actions-temp/picoBuild.py
 
     - name: Debug: Show directory structure
-      run: |
-        tree /F /A actions-temp  # Show folder structure of actions-temp for debugging
+      run: dir actions-temp /s  # Windows equivalent of tree for debugging
 
     - name: Get version and name from version.json
       id: version_info
