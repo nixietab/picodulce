@@ -38,14 +38,17 @@ jobs:
     - name: Read version and name from version.json
       id: version
       run: |
-        $VERSION = (jq -r '.version' version.json)
-        $NAME = (jq -r '.name' version.json)
+        VERSION=$(jq -r '.version' version.json)
+        NAME=$(jq -r '.name' version.json)
         echo "VERSION=$VERSION" >> $GITHUB_ENV  # Store version in the environment variable
         echo "NAME=$NAME" >> $GITHUB_ENV  # Store name in the environment variable
 
     - name: Check if tag exists
       run: |
-        git tag  # List the tags in the repository to check if the tag exists
+        if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+          echo "Tag v${{ env.VERSION }} already exists, skipping tag creation."
+          exit 0
+        fi
 
     - name: Tag release
       run: |
@@ -59,7 +62,6 @@ jobs:
         # Create the tag and push it to GitHub
         git tag -a "v${{ env.VERSION }}" -m "Release ${{ env.VERSION }} ${{ env.NAME }}"  # Tag the release
         git push origin --tags  # Push all tags to GitHub
-
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
