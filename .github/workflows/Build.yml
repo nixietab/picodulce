@@ -63,3 +63,5 @@ jobs:
         asset_path: build/2hsu.exe
         asset_name: 2hsu.exe
         asset_content_type: application/octet-stream
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
