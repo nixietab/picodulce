@@ -33,9 +33,10 @@ jobs:
       run: python actions-temp/picoBuild.py
 
     - name: Show directory structure
-      run: dir actions-temp
-      run: dir
-
+      run: | 
+        dir actions-temp
+        dir
+      
     - name: Get version and name from version.json
       id: version_info
       run: |
