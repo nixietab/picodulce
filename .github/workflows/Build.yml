@@ -6,7 +6,7 @@ on:
       - version.json  # Trigger on changes to version.json
 
 jobs:
-  run-on-version-change:
+  version-release:
     runs-on: windows-latest  # Use Windows 10 runner
 
     steps:
@@ -35,13 +35,9 @@ jobs:
       run: |
         python actions-temp/picoBuild.py
 
-  create-release:
-    needs: run-on-version-change  # Run only after the previous job
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - name: Debug: Show directory structure
+      run: |
+        tree /F /A actions-temp  # Show folder structure of actions-temp for debugging
 
     - name: Get version and name from version.json
       id: version_info
