@@ -53,10 +53,13 @@ jobs:
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
 
+        # Set VERSION_NAME using environment variables
+        echo "VERSION_NAME=${{ env.VERSION }} ${{ env.NAME }}" >> $GITHUB_ENV  # Store the full version name
+
         # Create the tag and push it to GitHub
-        VERSION_NAME="${{ env.VERSION }} ${{ env.NAME }}"
-        git tag -a "v${{ env.VERSION }}" -m "Release $VERSION_NAME"  # Tag the release with version number and name
+        git tag -a "v${{ env.VERSION }}" -m "Release ${{ env.VERSION }} ${{ env.NAME }}"  # Tag the release
         git push origin --tags  # Push all tags to GitHub
+
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
