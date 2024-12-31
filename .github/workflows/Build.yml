@@ -43,11 +43,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '16'
-
     - name: Get version and name from version.json
       id: version_info
       run: |
@@ -56,6 +51,7 @@ jobs:
         echo "RELEASE_TAG=$($versionJson.version)" >> $env:GITHUB_ENV
 
     - name: Create GitHub Release
+      id: create_release
       uses: actions/create-release@v1
       with:
         tag_name: ${{ env.RELEASE_TAG }}
@@ -69,7 +65,7 @@ jobs:
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ steps.version_info.outputs.upload_url }}
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: actions-temp/build/2hsu.exe
         asset_name: 2hsu.exe
         asset_content_type: application/octet-stream
