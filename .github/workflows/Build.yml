@@ -38,8 +38,8 @@ jobs:
     - name: Read version and name from version.json
       id: version
       run: |
-        VERSION=$(jq -r '.version' version.json)
-        NAME=$(jq -r '.name' version.json)
+        $VERSION = (jq -r '.version' version.json)
+        $NAME = (jq -r '.name' version.json)
         echo "VERSION=$VERSION" >> $GITHUB_ENV  # Store version in the environment variable
         echo "NAME=$NAME" >> $GITHUB_ENV  # Store name in the environment variable
 
