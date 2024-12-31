@@ -43,6 +43,10 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_ENV  # Store version in the environment variable
         echo "NAME=$NAME" >> $GITHUB_ENV  # Store name in the environment variable
 
+    - name: Check if tag exists
+      run: |
+        git tag  # List the tags in the repository to check if the tag exists
+
     - name: Tag release
       run: |
         # Set Git user for the GitHub Actions runner
@@ -50,10 +54,9 @@ jobs:
         git config user.email "github-actions@github.com"
 
         # Create the tag and push it to GitHub
-        $VERSION_NAME = "${env:VERSION} ${env:NAME}"
-        git tag -a "v${env:VERSION}" -m "Release $VERSION_NAME"  # Tag the release with version number and name
-        git push origin "v${env:VERSION}"  # Push the tag to GitHub
-
+        VERSION_NAME="${{ env.VERSION }} ${{ env.NAME }}"
+        git tag -a "v${{ env.VERSION }}" -m "Release $VERSION_NAME"  # Tag the release with version number and name
+        git push origin --tags  # Push all tags to GitHub
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
