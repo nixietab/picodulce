@@ -9,7 +9,7 @@ import requests
 import json
 import os
 import time
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
@@ -1257,11 +1257,12 @@ class ModLoaderAndVersionMenu(QDialog):
         # Add content to "Instances" tab
         self.setup_instances_tab(instances_tab)
 
+
     def setup_instances_tab(self, instances_tab):
         layout = QVBoxLayout(instances_tab)
 
         # Create title label
-        title_label = QLabel('Current Instance:')
+        title_label = QLabel('Manage Minecraft Instances')
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
@@ -1281,20 +1282,6 @@ class ModLoaderAndVersionMenu(QDialog):
         create_instance_button = QPushButton("Create Instance")
         create_instance_button.clicked.connect(self.create_instance)
         layout.addWidget(create_instance_button)
-
-        # Create input field and button to rename an instance
-        self.rename_instance_input = QLineEdit()
-        self.rename_instance_input.setPlaceholderText("Enter new instance name")
-        layout.addWidget(self.rename_instance_input)
-
-        rename_instance_button = QPushButton("Rename Instance")
-        rename_instance_button.clicked.connect(self.rename_instance)
-        layout.addWidget(rename_instance_button)
-
-        # Create button to delete an instance
-        delete_instance_button = QPushButton("Delete Instance")
-        delete_instance_button.clicked.connect(self.delete_instance)
-        layout.addWidget(delete_instance_button)
 
         # Fetch and display the current instances
         self.load_instances()
@@ -1334,20 +1321,7 @@ class ModLoaderAndVersionMenu(QDialog):
         else:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
 
-    def rename_instance(self):
-        selected_item = self.instances_list_widget.currentItem()
-
-        if not selected_item:
-            QMessageBox.warning(self, "No Selection", "Please select an instance to rename.")
-            return
-
-        old_instance_name = selected_item.text()
-        new_instance_name = self.rename_instance_input.text().strip()
-
-        if not new_instance_name:
-            QMessageBox.warning(self, "Invalid Input", "Please enter a valid new instance name.")
-            return
-
+    def rename_instance(self, old_instance_name, new_instance_name):
         if old_instance_name == "default":
             QMessageBox.warning(self, "Cannot Rename Instance", "You cannot rename the 'default' instance.")
             return
@@ -1379,48 +1353,36 @@ class ModLoaderAndVersionMenu(QDialog):
             logging.error("Error renaming instance: %s", e.stderr)
             QMessageBox.critical(self, "Error", f"Failed to rename instance: {e.stderr}")
 
+    def delete_instance(self, instance_name):
+        if instance_name == "default":
+            QMessageBox.warning(self, "Cannot Delete Instance", "You cannot delete the 'default' instance.")
+            return
 
+        confirm_delete = QMessageBox.question(
+            self, "Confirm Deletion", f"Are you sure you want to delete the instance '{instance_name}'?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
 
+        if confirm_delete == QMessageBox.Yes:
+            try:
+                # Run the "picomc instance delete" command
+                process = subprocess.Popen(['picomc', 'instance', 'delete', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                output, error = process.communicate()
 
-    def delete_instance(self):
-        # Get the selected instance name
-        selected_instance = self.instances_list_widget.currentItem()
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
-        if selected_instance:
-            instance_name = selected_instance.text()
+                # Notify the user that the instance was deleted
+                QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
 
-            # Prevent deletion of the "default" instance
-            if instance_name == "default":
-                QMessageBox.warning(self, "Cannot Delete Instance", "You cannot delete the 'default' instance.")
-                return
+                # Reload the instances list
+                self.load_instances()
 
-            confirm_delete = QMessageBox.question(
-                self, "Confirm Deletion", f"Are you sure you want to delete the instance '{instance_name}'?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-
-            if confirm_delete == QMessageBox.Yes:
-                try:
-                    # Run the "picomc instance delete" command
-                    process = subprocess.Popen(['picomc', 'instance', 'delete', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    output, error = process.communicate()
-
-                    if process.returncode != 0:
-                        raise subprocess.CalledProcessError(process.returncode, process.args, error)
-
-                    # Notify the user that the instance was deleted
-                    QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
-
-                    # Reload the instances list
-                    self.load_instances()
-
-                except FileNotFoundError:
-                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-                except subprocess.CalledProcessError as e:
-                    logging.error("Error deleting instance: %s", e.stderr)
-                    QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
-        else:
-            QMessageBox.warning(self, "No Selection", "Please select an instance to delete.")
+            except FileNotFoundError:
+                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            except subprocess.CalledProcessError as e:
+                logging.error("Error deleting instance: %s", e.stderr)
+                QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
 
     def load_instances(self):
         try:
@@ -1432,37 +1394,74 @@ class ModLoaderAndVersionMenu(QDialog):
             # Parse the output and add each instance to the list widget
             instances = output.splitlines()
             self.instances_list_widget.clear()  # Clear the previous list
-            self.instances_list_widget.addItems(instances)
+            for instance in instances:
+                item = QListWidgetItem()
+                self.instances_list_widget.addItem(item)
+                self.add_instance_buttons(item, instance)
 
         except FileNotFoundError:
             logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
         except subprocess.CalledProcessError as e:
             logging.error("Error fetching instances: %s", e.stderr)
 
-    def on_instance_selected(self, item):
-        # Get the selected instance name
-        selected_instance = item.text()
+    def add_instance_buttons(self, list_item, instance_name):
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        # Path to the config.json file
+        label = QLabel(instance_name)
+        rename_button = QPushButton("Rename")
+        delete_button = QPushButton("Delete")
+
+        # Stylize the buttons
+        button_style = """
+        QPushButton {
+            padding: 2px 5px;
+        }
+        """
+        rename_button.setStyleSheet(button_style)
+        delete_button.setStyleSheet(button_style)
+
+        layout.addWidget(label)
+        layout.addStretch()
+        layout.addWidget(rename_button)
+        layout.addWidget(delete_button)
+
+        widget.setLayout(layout)
+        list_item.setSizeHint(widget.sizeHint())
+        self.instances_list_widget.setItemWidget(list_item, widget)
+
+        # Connect button signals
+        rename_button.clicked.connect(lambda: self.prompt_rename_instance(instance_name))
+        delete_button.clicked.connect(lambda: self.delete_instance(instance_name))
+
+    def prompt_rename_instance(self, old_instance_name):
+        new_instance_name, ok = QInputDialog.getText(
+            self, "Rename Instance",
+            f"Enter new name for instance '{old_instance_name}':"
+        )
+
+        if ok and new_instance_name:
+            self.rename_instance(old_instance_name, new_instance_name)
+
+    def on_instance_selected(self, item):
+        widget = self.instances_list_widget.itemWidget(item)
+        instance_name = widget.findChild(QLabel).text()
+
         config_file = 'config.json'
 
-        # Check if the config file exists
         if os.path.exists(config_file):
             try:
-                # Load the current config.json file
                 with open(config_file, 'r') as file:
                     config_data = json.load(file)
 
-                # Update the "Instance" value with the selected instance name
-                config_data['Instance'] = selected_instance
+                config_data['Instance'] = instance_name
 
-                # Save the updated config back to the file
                 with open(config_file, 'w') as file:
                     json.dump(config_data, file, indent=4)
 
-                logging.info(f"Config updated: Instance set to {selected_instance}")
+                logging.info(f"Config updated: Instance set to {instance_name}")
 
-                # Update the label with the new instance
                 self.update_instance_label()
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
@@ -1475,11 +1474,9 @@ class ModLoaderAndVersionMenu(QDialog):
 
         if os.path.exists(config_file):
             try:
-                # Load the config file
                 with open(config_file, 'r') as file:
                     config_data = json.load(file)
 
-                # Get the current instance from the config and update the label
                 current_instance = config_data.get('Instance', 'Not set')
                 self.current_instance_label.setText(f'Current instance: {current_instance}')
 
@@ -1487,6 +1484,7 @@ class ModLoaderAndVersionMenu(QDialog):
                 logging.error(f"Error reading config.json: {e}")
         else:
             self.current_instance_label.setText('Current instance: Not set')
+
 
     def setup_install_mod_loader_tab(self, install_mod_tab):
         layout = QVBoxLayout(install_mod_tab)
