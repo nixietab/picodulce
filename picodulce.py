@@ -22,10 +22,8 @@ class PicomcVersionSelector(QWidget):
         self.open_dialogs = []
         self.check_config_file()
         self.themes_integrity()
-        # Specify the path to the themes directory
         themes_folder = "themes"
         
-        # Default theme file name (can be changed)
         theme_file = self.config.get("Theme", "Dark.json")
 
         # Ensure the theme file exists in the themes directory
