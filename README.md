@@ -40,7 +40,7 @@
 - **Custom Theme Support**: Create and apply personalized themes with ease. A dedicated repository and guide are [available to help you get started.](https://github.com/nixietab/picodulce-themes)
 
 # Installation
-If you are on windows you may be more interested in a [installer](https://github.com/nixietab/2hsu/releases/download/release/2hsu.exe)
+If you are on windows you may be more interested in a [installer](https://github.com/nixietab/picodulce/releases/latest)
 
 ### 1. Clone the repository
 
