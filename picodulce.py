@@ -489,49 +489,41 @@ class PicomcVersionSelector(QWidget):
         ## REPOSITORY BLOCK BEGGINS
 
     def download_themes_window(self):
-        # Create a QDialog to open the themes window
         dialog = QDialog(self)
         dialog.setWindowTitle("Themes Repository")
-        dialog.setGeometry(100, 100, 400, 300)
+        dialog.setGeometry(100, 100, 400, 500)
 
-        # Layout setup for the new window
         layout = QVBoxLayout()
 
-        # List widget to display themes
         self.theme_list = QListWidget(dialog)
         self.theme_list.setSelectionMode(QListWidget.SingleSelection)
         self.theme_list.clicked.connect(self.on_theme_click)
         layout.addWidget(self.theme_list)
 
-        # Label to display the details of the selected theme
-        self.details_label = QLabel(dialog)  # Define the label here
+        self.details_label = QLabel(dialog)
         layout.addWidget(self.details_label)
 
-        # Download button to download the selected theme's JSON
+        self.image_label = QLabel(dialog)
+        self.image_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.image_label)
+
         download_button = QPushButton("Download Theme", dialog)
         download_button.clicked.connect(self.theme_download)
         layout.addWidget(download_button)
 
         dialog.setLayout(layout)
-
-        # Initially load themes into the list
         self.load_themes()
-        dialog.exec_()  # Open the dialog as a modal window
+        dialog.exec_()
 
     def fetch_themes(self):
         try:
-            # Read the config.json file
             with open("config.json", "r") as config_file:
                 config = json.load(config_file)
-            
-            # Get the ThemeRepository value
             url = config.get("ThemeRepository")
             if not url:
                 raise ValueError("ThemeRepository is not defined in config.json")
-
-            # Fetch themes from the specified URL
             response = requests.get(url)
-            response.raise_for_status()  # Raise an exception for HTTP errors
+            response.raise_for_status()
             return response.json()
         except (FileNotFoundError, json.JSONDecodeError) as config_error:
             self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
@@ -546,13 +538,9 @@ class PicomcVersionSelector(QWidget):
     def download_theme_json(self, theme_url, theme_name):
         try:
             response = requests.get(theme_url)
-            response.raise_for_status()  # Raise an exception for HTTP errors
-
-            # Create the themes directory if it doesn't exist
+            response.raise_for_status()
             if not os.path.exists('themes'):
                 os.makedirs('themes')
-
-            # Save the content of the theme JSON file to the 'themes' folder
             theme_filename = os.path.join('themes', f'{theme_name}.json')
             with open(theme_filename, 'wb') as f:
                 f.write(response.content)
@@ -571,26 +559,20 @@ class PicomcVersionSelector(QWidget):
         return os.path.exists(os.path.join('themes', f'{theme_name}.json'))
 
     def load_themes(self):
-        theme_list = self.theme_list
         themes_data = self.fetch_themes()
         themes = themes_data.get("themes", [])
-
-        # Separate themes into installed and uninstalled
         installed_themes = []
         uninstalled_themes = []
-
         for theme in themes:
             theme_display_name = f"{theme['name']} by {theme['author']}"
             if self.is_theme_installed(theme['name']):
-                theme_display_name += " [I]"  # Mark installed themes
+                theme_display_name += " [I]"
                 installed_themes.append(theme_display_name)
             else:
                 uninstalled_themes.append(theme_display_name)
-
-        # Clear the list and add uninstalled themes first, then installed ones
-        theme_list.clear()
-        theme_list.addItems(uninstalled_themes)
-        theme_list.addItems(installed_themes)
+        self.theme_list.clear()
+        self.theme_list.addItems(uninstalled_themes)
+        self.theme_list.addItems(installed_themes)
 
     def on_theme_click(self):
         selected_item = self.theme_list.currentItem()
@@ -598,14 +580,32 @@ class PicomcVersionSelector(QWidget):
             theme_name = selected_item.text().split(" by ")[0]
             theme = self.find_theme_by_name(theme_name)
             if theme:
-                # Display theme details in the QLabel (details_label)
                 self.details_label.setText(
                     f"Name: {theme['name']}\n"
                     f"Description: {theme['description']}\n"
                     f"Author: {theme['author']}\n"
                     f"License: {theme['license']}\n"
-                    f"Link: {theme['link']}"
+                    f"Link: {theme['link']}\n"
+                    f"Preview URL: {theme.get('preview', 'N/A')}"
                 )
+                preview = theme.get('preview')
+                if preview:
+                    image_data = self.fetch_image(preview)
+                    if image_data:
+                        pixmap = QPixmap()
+                        pixmap.loadFromData(image_data)
+                        self.image_label.setPixmap(pixmap)
+                    else:
+                        self.image_label.clear()
+
+    def fetch_image(self, url):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as e:
+            self.show_error_popup("Error fetching image", f"An error occurred while fetching the image: {e}")
+            return None
 
     def find_theme_by_name(self, theme_name):
         themes_data = self.fetch_themes()
@@ -623,7 +623,7 @@ class PicomcVersionSelector(QWidget):
             if theme:
                 theme_url = theme["link"]
                 self.download_theme_json(theme_url, theme_name)
-                self.load_themes()  # Reload the list to show the "[I]" marker
+                self.load_themes()
 
         ## REPOSITORY BLOCK ENDS
 
