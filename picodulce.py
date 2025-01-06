@@ -491,25 +491,25 @@ class PicomcVersionSelector(QWidget):
     def download_themes_window(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Themes Repository")
-        dialog.setGeometry(100, 100, 600, 500)  # Adjust width for side-by-side layout
+        dialog.setGeometry(100, 100, 800, 600)
 
-        main_layout = QHBoxLayout(dialog)  # Horizontal layout for splitting left and right
+        main_layout = QHBoxLayout(dialog)
 
-        # Left side: Theme list
         self.theme_list = QListWidget(dialog)
         self.theme_list.setSelectionMode(QListWidget.SingleSelection)
         self.theme_list.clicked.connect(self.on_theme_click)
         main_layout.addWidget(self.theme_list)
 
-        # Right side: Theme details, image, and download button
         right_layout = QVBoxLayout()
 
         self.details_label = QLabel(dialog)
-        self.details_label.setWordWrap(True)  # Enable word wrap for better formatting
+        self.details_label.setWordWrap(True)
+        self.details_label.setStyleSheet("padding: 10px;")
         right_layout.addWidget(self.details_label)
 
         self.image_label = QLabel(dialog)
         self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setStyleSheet("padding: 10px;")
         right_layout.addWidget(self.image_label)
 
         download_button = QPushButton("Download Theme", dialog)
@@ -597,13 +597,14 @@ class PicomcVersionSelector(QWidget):
             theme = self.find_theme_by_name(theme_name)
             if theme:
                 self.details_label.setText(
-                    f"Name: {theme['name']}\n"
-                    f"Description: {theme['description']}\n"
-                    f"Author: {theme['author']}\n"
-                    f"License: {theme['license']}\n"
-                    f"Link: {theme['link']}\n"
-                    f"Preview URL: {theme.get('preview', 'N/A')}"
+                    f"<b>Name:</b> {theme['name']}<br>"
+                    f"<b>Description:</b> {theme['description']}<br>"
+                    f"<b>Author:</b> {theme['author']}<br>"
+                    f"<b>License:</b> {theme['license']}<br>"
+                    f"<b>Link:</b> <a href='{theme['link']}'>{theme['link']}</a><br>"
                 )
+                self.details_label.setTextFormat(Qt.RichText)
+                self.details_label.setOpenExternalLinks(True)
                 preview = theme.get('preview')
                 if preview:
                     image_data = self.fetch_image(preview)
