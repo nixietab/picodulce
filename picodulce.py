@@ -491,27 +491,38 @@ class PicomcVersionSelector(QWidget):
     def download_themes_window(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Themes Repository")
-        dialog.setGeometry(100, 100, 400, 500)
+        dialog.setGeometry(100, 100, 600, 500)  # Adjust width for side-by-side layout
 
-        layout = QVBoxLayout()
+        main_layout = QHBoxLayout(dialog)  # Horizontal layout for splitting left and right
 
+        # Left side: Theme list
         self.theme_list = QListWidget(dialog)
         self.theme_list.setSelectionMode(QListWidget.SingleSelection)
         self.theme_list.clicked.connect(self.on_theme_click)
-        layout.addWidget(self.theme_list)
+        main_layout.addWidget(self.theme_list)
+
+        # Right side: Theme details, image, and download button
+        right_layout = QVBoxLayout()
 
         self.details_label = QLabel(dialog)
-        layout.addWidget(self.details_label)
+        self.details_label.setWordWrap(True)  # Enable word wrap for better formatting
+        right_layout.addWidget(self.details_label)
 
         self.image_label = QLabel(dialog)
         self.image_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.image_label)
+        right_layout.addWidget(self.image_label)
 
         download_button = QPushButton("Download Theme", dialog)
         download_button.clicked.connect(self.theme_download)
-        layout.addWidget(download_button)
+        right_layout.addWidget(download_button)
 
-        dialog.setLayout(layout)
+        # Add a spacer to push the button to the bottom
+        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        right_layout.addItem(spacer)
+
+        main_layout.addLayout(right_layout)
+        dialog.setLayout(main_layout)
+
         self.load_themes()
         dialog.exec_()
 
@@ -573,6 +584,11 @@ class PicomcVersionSelector(QWidget):
         self.theme_list.clear()
         self.theme_list.addItems(uninstalled_themes)
         self.theme_list.addItems(installed_themes)
+
+        # Autoselect the first item in the list if it exists
+        if self.theme_list.count() > 0:
+            self.theme_list.setCurrentRow(0)
+            self.on_theme_click()
 
     def on_theme_click(self):
         selected_item = self.theme_list.currentItem()
