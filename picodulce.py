@@ -104,7 +104,7 @@ class PicomcVersionSelector(QWidget):
             stylesheet = self.theme["stylesheet"]
             app.setStyleSheet(stylesheet)
         else:
-            print("No 'stylesheet' section found in the theme file.")
+            print("Theme dosn't seem to have a stylesheet")
 
     def themes_integrity(self):
         # Define folder and file paths
@@ -153,8 +153,6 @@ class PicomcVersionSelector(QWidget):
         if not os.path.exists(themes_folder):
             print(f"Creating folder: {themes_folder}")
             os.makedirs(themes_folder)
-        else:
-            print(f"Folder already exists: {themes_folder}")
 
         # Step 2: Ensure Dark.json exists
         if not os.path.isfile(dark_theme_file):
@@ -162,8 +160,6 @@ class PicomcVersionSelector(QWidget):
             with open(dark_theme_file, "w", encoding="utf-8") as file:
                 json.dump(dark_theme_content, file, indent=2)
             print("Dark.json has been created successfully.")
-        else:
-            print(f"File already exists: {dark_theme_file}")
 
         # Step 3: Ensure Native.json exists
         if not os.path.isfile(native_theme_file):
@@ -171,9 +167,10 @@ class PicomcVersionSelector(QWidget):
             with open(native_theme_file, "w", encoding="utf-8") as file:
                 json.dump(native_theme_content, file, indent=2)
             print("Native.json has been created successfully.")
-        else:
-            print(f"File already exists: {native_theme_file}")
 
+        # Check if both files exist and print OK message
+        if os.path.isfile(dark_theme_file) and os.path.isfile(native_theme_file):
+            print("Theme Integrity OK")
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
