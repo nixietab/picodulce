@@ -23,7 +23,6 @@ class PicomcVersionSelector(QWidget):
         self.check_config_file()
         self.themes_integrity()
         themes_folder = "themes"
-        
         theme_file = self.config.get("Theme", "Dark.json")
 
         # Ensure the theme file exists in the themes directory
@@ -46,6 +45,15 @@ class PicomcVersionSelector(QWidget):
             discord_rcp_thread = Thread(target=self.start_discord_rcp)
             discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
             discord_rcp_thread.start()
+
+    def load_translations(file_path, locale):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            translations = json.load(file)
+        return translations.get(locale, translations["en"])
+
+    translations = load_translations('locales.json', 'es')
+
+
 
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
@@ -173,6 +181,7 @@ class PicomcVersionSelector(QWidget):
             print("Theme Integrity OK")
 
     def init_ui(self):
+        translations = self.translations
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
         current_date = datetime.now()
         if (current_date.month == 12 and current_date.day >= 8) or (current_date.month == 1 and current_date.day <= 1):
@@ -210,11 +219,11 @@ class PicomcVersionSelector(QWidget):
                 print("No background image base64 string found in the theme file.")
 
         # Create title label
-        title_label = QLabel('PicoDulce Launcher')  # Change label text
+        title_label = QLabel(translations['title_label'])
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
 
         # Create installed versions section
-        installed_versions_label = QLabel('Installed Versions:')
+        installed_versions_label = QLabel(translations['installed_versions_label'])
         installed_versions_label.setFont(QFont("Arial", 14))
         self.installed_version_combo = QComboBox()
         self.installed_version_combo.setMinimumWidth(200)
@@ -224,7 +233,7 @@ class PicomcVersionSelector(QWidget):
         buttons_layout = QVBoxLayout()
 
         # Create play button for installed versions
-        self.play_button = QPushButton('Play')
+        self.play_button = QPushButton(translations['play_button'])
         self.play_button.setFocusPolicy(Qt.NoFocus)  # Set focus policy to prevent highlighting
         self.play_button.clicked.connect(self.play_instance)
         highlight_color = self.palette().color(QPalette.Highlight)
@@ -232,25 +241,25 @@ class PicomcVersionSelector(QWidget):
         buttons_layout.addWidget(self.play_button)
 
         # Version Manager Button
-        self.open_menu_button = QPushButton('Version Manager')
+        self.open_menu_button = QPushButton(translations['version_manager_button'])
         self.open_menu_button.clicked.connect(self.open_mod_loader_and_version_menu)
         buttons_layout.addWidget(self.open_menu_button)
 
         # Create button to manage accounts
-        self.manage_accounts_button = QPushButton('Manage Accounts')
+        self.manage_accounts_button = QPushButton(translations['manage_accounts_button'])
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
 
         # Create a button for the marroc mod loader
-        self.open_marroc_button = QPushButton('Marroc Mod Manager')
+        self.open_marroc_button = QPushButton(translations['marroc_mod_manager_button'])
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
         # Create grid layout for Settings and About buttons
         grid_layout = QGridLayout()
-        self.settings_button = QPushButton('Settings')
+        self.settings_button = QPushButton(translations['settings_button'])
         self.settings_button.clicked.connect(self.open_settings_dialog)
-        self.about_button = QPushButton('About')
+        self.about_button = QPushButton(translations['about_button'])
         self.about_button.clicked.connect(self.show_about_dialog)
         
         grid_layout.addWidget(self.settings_button, 0, 0)
@@ -331,8 +340,10 @@ class PicomcVersionSelector(QWidget):
                 json.dump(self.config, config_file, indent=4)
 
     def open_settings_dialog(self):
+        translations = self.translations
+        
         dialog = QDialog(self)
-        dialog.setWindowTitle('Settings')
+        dialog.setWindowTitle(translations['settings_dialog_title'])
 
         # Make the window resizable
         dialog.setMinimumSize(400, 300)
@@ -344,14 +355,14 @@ class PicomcVersionSelector(QWidget):
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
-        title_label = QLabel('Settings')
+        title_label = QLabel(translations['settings_tab'])
         title_label.setFont(QFont("Arial", 14))
 
         # Create checkboxes for settings tab
-        discord_rcp_checkbox = QCheckBox('Discord Rich Presence')
+        discord_rcp_checkbox = QCheckBox(translations['discord_rcp_checkbox'])
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
 
-        check_updates_checkbox = QCheckBox('Check Updates on Start')
+        check_updates_checkbox = QCheckBox(translations['check_updates_checkbox'])
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
         settings_layout.addWidget(title_label)
@@ -359,13 +370,13 @@ class PicomcVersionSelector(QWidget):
         settings_layout.addWidget(check_updates_checkbox)
 
         # Add buttons in the settings tab
-        update_button = QPushButton('Check for updates')
+        update_button = QPushButton(translations['update_button'])
         update_button.clicked.connect(self.check_for_update)
 
-        open_game_directory_button = QPushButton('Open game directory')
+        open_game_directory_button = QPushButton(translations['open_game_directory_button'])
         open_game_directory_button.clicked.connect(self.open_game_directory)
 
-        stats_button = QPushButton('Stats for Nerds')
+        stats_button = QPushButton(translations['stats_button'])
         stats_button.clicked.connect(self.show_system_info)
 
         settings_layout.addWidget(update_button)
@@ -379,15 +390,15 @@ class PicomcVersionSelector(QWidget):
         customization_layout = QVBoxLayout()
 
         # Create theme background checkbox for customization tab
-        theme_background_checkbox = QCheckBox('Theme Background')
+        theme_background_checkbox = QCheckBox(translations['theme_background_checkbox'])
         theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
 
         # Label to show currently selected theme
         theme_filename = self.config.get('Theme', 'Dark.json')
-        current_theme_label = QLabel(f"Current Theme: {theme_filename}")
+        current_theme_label = QLabel(translations['current_theme_label'].format(theme=theme_filename))
 
         # QListWidget to display available themes
-        json_files_label = QLabel('Installed Themes:')
+        json_files_label = QLabel(translations['installed_themes_label'])
         json_files_list_widget = QListWidget()
 
         # Track selected theme
@@ -408,7 +419,7 @@ class PicomcVersionSelector(QWidget):
         customization_layout.addWidget(json_files_list_widget)
 
         # Button to download themes
-        download_themes_button = QPushButton("Download More Themes")
+        download_themes_button = QPushButton(translations['download_themes_button'])
         download_themes_button.clicked.connect(self.download_themes_window)
 
         customization_layout.addWidget(download_themes_button)
@@ -416,11 +427,11 @@ class PicomcVersionSelector(QWidget):
         customization_tab.setLayout(customization_layout)
 
         # Add the tabs to the TabWidget
-        tab_widget.addTab(settings_tab, "Settings")
-        tab_widget.addTab(customization_tab, "Customization")
+        tab_widget.addTab(settings_tab, translations['settings_tab'])
+        tab_widget.addTab(customization_tab, translations['customization_tab'])
 
         # Save button
-        save_button = QPushButton('Save')
+        save_button = QPushButton(translations['save_button'])
         save_button.clicked.connect(
             lambda: self.save_settings(
                 discord_rcp_checkbox.isChecked(),
@@ -481,13 +492,13 @@ class PicomcVersionSelector(QWidget):
         selected_item = json_files_list_widget.currentItem()
         if selected_item:
             self.selected_theme = selected_item.data(Qt.UserRole)
-            current_theme_label.setText(f"Current Theme: {self.selected_theme}")
-
-        ## REPOSITORY BLOCK BEGGINS
+            current_theme_label.setText(self.translations['current_theme_label'].format(theme=self.selected_theme))
 
     def download_themes_window(self):
+        translations = self.translations
+        
         dialog = QDialog(self)
-        dialog.setWindowTitle("Themes Repository")
+        dialog.setWindowTitle(translations['themes_repository_title'])
         dialog.setGeometry(100, 100, 800, 600)
 
         main_layout = QHBoxLayout(dialog)
@@ -509,7 +520,7 @@ class PicomcVersionSelector(QWidget):
         self.image_label.setStyleSheet("padding: 10px;")
         right_layout.addWidget(self.image_label)
 
-        download_button = QPushButton("Download Theme", dialog)
+        download_button = QPushButton(translations['download_theme_button'], dialog)
         download_button.clicked.connect(self.theme_download)
         right_layout.addWidget(download_button)
 
@@ -807,25 +818,27 @@ class PicomcVersionSelector(QWidget):
             QMessageBox.critical(self, "Error", "'marroc.py' not found.")
 
     def play_instance(self):
+        translations = self.translations
+        
         if self.installed_version_combo.count() == 0:
-            QMessageBox.warning(self, "No Version Available", "Please download a version first.")
+            QMessageBox.warning(self, translations["no_version_available"], translations["no_version_message"])
             return
 
         # Check if there are any accounts
         try:
             account_list_output = subprocess.check_output(["picomc", "account", "list"]).decode("utf-8").strip()
             if not account_list_output:
-                QMessageBox.warning(self, "No Account Available", "Please create an account first.")
+                QMessageBox.warning(self, translations["no_account_available"], translations["no_account_message"])
                 return
 
             # Check if the selected account has a '*' (indicating it's the selected one)
             if '*' not in account_list_output:
-                QMessageBox.warning(self, "No Account Selected", "Please select an account.")
+                QMessageBox.warning(self, translations["no_account_selected"], translations["no_account_selected_message"])
                 return
         except subprocess.CalledProcessError as e:
-            error_message = f"Error fetching accounts: {str(e)}"
+            error_message = translations["error_message"].format(error=str(e))
             logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
+            QMessageBox.critical(self, translations["error_title"], error_message)
             return
 
         selected_instance = self.installed_version_combo.currentText()
@@ -874,32 +887,34 @@ class PicomcVersionSelector(QWidget):
         QMessageBox.critical(self, title, message)
 
     def manage_accounts(self):
-        # Main account management dialog
+        translations = self.translations
+        
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Manage Accounts')
+        dialog.setWindowTitle(translations['manage_accounts_title'])
         dialog.setFixedSize(400, 250)
 
         # Title
-        title_label = QLabel('Manage Accounts')
+        title_label = QLabel(translations['manage_accounts_title'])
         title_label.setFont(QFont("Arial", 14))
         title_label.setAlignment(Qt.AlignCenter)  # Center the text
+
         # Dropdown for selecting accounts
         account_combo = QComboBox()
         self.populate_accounts(account_combo)
 
         # Buttons
-        create_account_button = QPushButton('Create Account')
+        create_account_button = QPushButton(translations['create_account_button'])
         create_account_button.clicked.connect(self.open_create_account_dialog)
 
-        authenticate_button = QPushButton('Authenticate Account')
+        authenticate_button = QPushButton(translations['authenticate_account_button'])
         authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
 
-        remove_account_button = QPushButton('Remove Account')
+        remove_account_button = QPushButton(translations['remove_account_button'])
         remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
 
         # New button to set the account idk
-        set_default_button = QPushButton('Select')
+        set_default_button = QPushButton(translations['select_button'])
         set_default_button.setFixedWidth(100)  # Set button width to a quarter
         set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
 
@@ -924,18 +939,19 @@ class PicomcVersionSelector(QWidget):
         self.open_dialogs.remove(dialog)
 
     def open_create_account_dialog(self):
-        # Dialog for creating a new account
+        translations = self.translations
+        
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Create Account')
+        dialog.setWindowTitle(translations['create_account_dialog_title'])
         dialog.setFixedSize(300, 150)
 
         username_input = QLineEdit()
-        username_input.setPlaceholderText('Enter Username')
+        username_input.setPlaceholderText(translations['enter_username'])
 
-        microsoft_checkbox = QCheckBox('Microsoft Account')
+        microsoft_checkbox = QCheckBox(translations['microsoft_account_checkbox'])
 
-        create_button = QPushButton('Create')
+        create_button = QPushButton(translations['create_button'])
         create_button.clicked.connect(lambda: self.create_account(dialog, username_input.text(), microsoft_checkbox.isChecked()))
 
         layout = QVBoxLayout()
@@ -948,43 +964,46 @@ class PicomcVersionSelector(QWidget):
         self.open_dialogs.remove(dialog)
 
     def authenticate_account(self, dialog, account_name):
-        # Authenticate a selected account
+        translations = self.translations
+        
         account_name = account_name.strip().lstrip(" * ")
         if not account_name:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to authenticate.")
+            QMessageBox.warning(dialog, translations["warning_title"], translations["select_account_to_authenticate"])
             return
 
         try:
             subprocess.run(['picomc', 'account', 'authenticate', account_name], check=True)
-            QMessageBox.information(self, "Success", f"Account '{account_name}' authenticated successfully!")
+            QMessageBox.information(self, translations["success_title"], translations["account_authenticated_successfully"].format(account=account_name))
         except subprocess.CalledProcessError as e:
-            error_message = f"Error authenticating account '{account_name}': {e.stderr.decode()}"
+            error_message = translations["error_authenticating_account"].format(account=account_name, error=e.stderr.decode())
             logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
+            QMessageBox.critical(self, translations["error_title"], error_message)
 
     def remove_account(self, dialog, username):
-        # Remove a selected account
+        translations = self.translations
+        
         username = username.strip().lstrip(" * ")
         if not username:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            QMessageBox.warning(dialog, translations["warning_title"], translations["select_account_to_remove"])
             return
 
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(dialog, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        confirm_message = translations["confirm_removal_message"].format(account=username)
+        confirm_dialog = QMessageBox.question(dialog, translations["confirm_removal"], confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm_dialog == QMessageBox.Yes:
             try:
                 subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                QMessageBox.information(dialog, "Success", f"Account '{username}' removed successfully!")
+                QMessageBox.information(dialog, translations["success_title"], translations["account_removed_successfully"].format(account=username))
                 self.populate_accounts_for_all_dialogs()
             except subprocess.CalledProcessError as e:
-                error_message = f"Error removing account: {e.stderr.decode()}"
+                error_message = translations["error_removing_account"].format(error=e.stderr.decode())
                 logging.error(error_message)
-                QMessageBox.critical(dialog, "Error", error_message)
+                QMessageBox.critical(dialog, translations["error_title"], error_message)
 
     def create_account(self, dialog, username, is_microsoft):
-        # Create a new account
+        translations = self.translations
+        
         if not username.strip():
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            QMessageBox.warning(dialog, translations["warning_title"], translations["username_cannot_be_blank"])
             return
 
         try:
@@ -993,12 +1012,12 @@ class PicomcVersionSelector(QWidget):
                 command.append('--ms')
 
             subprocess.run(command, check=True)
-            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
+            QMessageBox.information(dialog, translations["success_title"], translations["account_created_successfully"].format(account=username))
             self.populate_accounts_for_all_dialogs()
         except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
+            error_message = translations["error_creating_account"].format(error=e.stderr.decode())
             logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
+            QMessageBox.critical(dialog, translations["error_title"], error_message)
 
     def populate_accounts(self, account_combo):
         # Populate the account dropdown
@@ -1044,23 +1063,25 @@ class PicomcVersionSelector(QWidget):
                 self.populate_accounts(combo_box)
 
     def set_default_account(self, account_name, dialog):
-        # Set the selected account as the default
+        translations = self.translations
+        
         account_name = account_name.strip().lstrip(" * ")
         if not account_name:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to set as default.")
+            QMessageBox.warning(dialog, translations["warning_title"], translations["select_default_account"])
             return
 
         try:
             subprocess.run(['picomc', 'account', 'setdefault', account_name], check=True)
-            QMessageBox.information(self, "Success", f"Account '{account_name}' set as default!")
+            QMessageBox.information(self, translations["success_title"], translations["account_set_default"].format(account=account_name))
             self.populate_accounts_for_all_dialogs()
         except subprocess.CalledProcessError as e:
-            error_message = f"Error setting default account '{account_name}': {e.stderr.decode()}"
+            error_message = translations["error_setting_default_account"].format(account=account_name, error=e.stderr.decode())
             logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
+            QMessageBox.critical(self, translations["error_title"], error_message)
 
     def show_about_dialog(self):
-        # Load the version number from version.json
+        translations = self.translations
+        
         try:
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
@@ -1068,17 +1089,12 @@ class PicomcVersionSelector(QWidget):
         except (FileNotFoundError, json.JSONDecodeError):
             version_number = 'unknown version'
 
-        about_message = (
-            f"PicoDulce Launcher (v{version_number})\n\n"
-            "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
-            "Credits:\n"
-            "Nixietab: Code and UI design\n"
-            "Wabaano: Graphic design\n"
-            "Olinad: Christmas!!!!"
-        )
-        QMessageBox.about(self, "About", about_message)
+        about_message = translations["about_message"].format(version=version_number)
+        QMessageBox.about(self, translations["about_title"], about_message)
 
     def check_for_update_start(self):
+        translations = self.translations
+        
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
@@ -1089,21 +1105,23 @@ class PicomcVersionSelector(QWidget):
                     remote_version = remote_version_info.get("version")
                     logging.info(f"Remote version: {remote_version}")
                     if remote_version and remote_version != local_version:
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                        update_message = translations["update_message"].format(version=remote_version)
+                        update_dialog = QMessageBox.question(self, translations["update_available"], update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
                             self.download_update(remote_version_info)
                     else:
-                        print("Up to Date", "You already have the latest version!")
+                        QMessageBox.information(self, translations["up_to_date"], translations["latest_version_message"])
                 else:
                     logging.error("Failed to read local version information.")
-                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
+                    QMessageBox.critical(self, translations["error_title"], translations["error_checking_updates"])
         except Exception as e:
             logging.error("Error checking for updates: %s", str(e))
-            QMessageBox.critical(self, "Error", "Failed to check for updates.")
+            QMessageBox.critical(self, translations["error_title"], translations["error_checking_updates"])
 
     def check_for_update(self):
+        translations = self.translations
+        
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
@@ -1114,20 +1132,20 @@ class PicomcVersionSelector(QWidget):
                     remote_version = remote_version_info.get("version")
                     logging.info(f"Remote version: {remote_version}")
                     if remote_version and remote_version != local_version:
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                        update_message = translations["update_message"].format(version=remote_version)
+                        update_dialog = QMessageBox.question(self, translations["update_available"], update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
                             self.download_update(remote_version_info)
                     else:
-                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
+                        QMessageBox.information(self, translations["up_to_date"], translations["latest_version_message"])
                 else:
                     logging.error("Failed to read local version information.")
-                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
+                    QMessageBox.critical(self, translations["error_title"], translations["error_checking_updates"])
         except Exception as e:
             logging.error("Error checking for updates: %s", str(e))
-            QMessageBox.critical(self, "Error", "Failed to check for updates.")
-
+            QMessageBox.critical(self, translations["error_title"], translations["error_checking_updates"])
+            
     def fetch_remote_version(self):
         try:
             update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
