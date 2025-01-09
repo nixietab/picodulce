@@ -225,7 +225,6 @@ class PicomcVersionSelector(QWidget):
 
         # Create play button for installed versions
         self.play_button = QPushButton('Play')
-        self.play_button.setFocusPolicy(Qt.NoFocus)  # Set focus policy to prevent highlighting
         self.play_button.clicked.connect(self.play_instance)
         highlight_color = self.palette().color(QPalette.Highlight)
         self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
