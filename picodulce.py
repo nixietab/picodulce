@@ -3,6 +3,7 @@ import subprocess
 import threading
 from threading import Thread
 import logging
+import re
 import shutil
 import platform
 import requests
@@ -775,7 +776,20 @@ class PicomcVersionSelector(QWidget):
         self.installed_version_combo.addItems(versions)
 
     def populate_installed_versions_normal_order(self):
-        # Run the command and get the output
+        # Run the 'picomc instance create default' command at the start
+        try:
+            process = subprocess.Popen(['picomc', 'instance', 'create', 'default'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+        except FileNotFoundError:
+            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            return
+        except subprocess.CalledProcessError as e:
+            logging.error("Error creating default instance: %s", e.stderr)
+            return
+
+        # Run the 'picomc version list' command and get the output
         try:
             process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output, error = process.communicate()
@@ -946,6 +960,38 @@ class PicomcVersionSelector(QWidget):
         dialog.exec_()
         self.open_dialogs.remove(dialog)
 
+    def create_account(self, dialog, username, is_microsoft):
+        # Remove leading and trailing spaces from the username
+        username = username.strip()
+
+        if not username:
+            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            return
+
+        if not self.is_valid_username(username):
+            QMessageBox.warning(dialog, "Warning", "Invalid username. Usernames must be 3-16 characters long and can only contain letters, numbers, and underscores.")
+            return
+
+        try:
+            command = ['picomc', 'account', 'create', username]
+            if is_microsoft:
+                command.append('--ms')
+
+            subprocess.run(command, check=True)
+            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
+            self.populate_accounts_for_all_dialogs()
+            dialog.accept()
+        except subprocess.CalledProcessError as e:
+            error_message = f"Error creating account: {e.stderr.decode()}"
+            logging.error(error_message)
+            QMessageBox.critical(dialog, "Error", error_message)
+
+    def is_valid_username(self, username):
+        # Validate the username according to Minecraft's rules
+        if 3 <= len(username) <= 16 and re.match(r'^[a-zA-Z0-9_]+$', username):
+            return True
+        return False
+
     def authenticate_account(self, dialog, account_name):
         # Authenticate a selected account
         account_name = account_name.strip().lstrip(" * ")
@@ -980,24 +1026,6 @@ class PicomcVersionSelector(QWidget):
                 logging.error(error_message)
                 QMessageBox.critical(dialog, "Error", error_message)
 
-    def create_account(self, dialog, username, is_microsoft):
-        # Create a new account
-        if not username.strip():
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
-            return
-
-        try:
-            command = ['picomc', 'account', 'create', username]
-            if is_microsoft:
-                command.append('--ms')
-
-            subprocess.run(command, check=True)
-            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
-            self.populate_accounts_for_all_dialogs()
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
-            logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
 
     def populate_accounts(self, account_combo):
         # Populate the account dropdown
