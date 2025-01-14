@@ -40,7 +40,19 @@
 - **Custom Theme Support**: Create and apply personalized themes with ease. A dedicated repository and guide are [available to help you get started.](https://github.com/nixietab/picodulce-themes)
 
 # Installation
-If you are on windows you may be more interested in a [installer](https://github.com/nixietab/picodulce/releases/latest)
+
+## Windows
+For Windows systems using the [installer](https://github.com/nixietab/picodulce/releases/latest) is recommended
+
+## Arch Linux
+For installing on Arch a PKGBUILD is provided
+```
+git clone https://github.com/nixietab/picodulce
+cd picodulce
+makepkg -si
+```
+
+## Other OS
 
 ### 1. Clone the repository
 
