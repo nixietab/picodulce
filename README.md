@@ -45,9 +45,11 @@
 For Windows systems using the [installer](https://github.com/nixietab/picodulce/releases/latest) is recommended
 
 ## Arch Linux
-For installing on Arch a PKGBUILD is provided
+The package is available in the [AUR](https://aur.archlinux.org/packages/picodulce) as ```picodulce```
+
+For installing on Arch without using an AUR helper a PKGBUILD is provided
 ```
-git clone https://github.com/nixietab/picodulce
+git clone https://aur.archlinux.org/picodulce.git
 cd picodulce
 makepkg -si
 ```
