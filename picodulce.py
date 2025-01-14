@@ -48,6 +48,9 @@ class PicomcVersionSelector(QWidget):
             discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
             discord_rcp_thread.start()
 
+        if self.config.get("IsFirstLaunch", False):
+            self.FirstLaunch()
+
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
         # Check if the file exists, else load 'Dark.json'
@@ -173,6 +176,29 @@ class PicomcVersionSelector(QWidget):
         if os.path.isfile(dark_theme_file) and os.path.isfile(native_theme_file):
             print("Theme Integrity OK")
 
+
+    def FirstLaunch(self):
+        try:
+            self.config_path = "config.json"
+            print("Running picomc instance create default command...")
+            # Run the command using subprocess
+            result = subprocess.run(["picomc", "instance", "create", "default"], check=True, capture_output=True, text=True)
+            
+            # Print the output of the command
+            print("Command output:", result.stdout)
+            
+            # Change the value of IsFirstLaunch to False
+            self.config["IsFirstLaunch"] = False
+            print("IsFirstLaunch set to False")
+
+            # Save the updated config to the config.json file
+            with open(self.config_path, 'w') as f:
+                json.dump(self.config, f, indent=4)
+            print("Configuration saved to", self.config_path)
+
+        except subprocess.CalledProcessError as e:
+            print("An error occurred while creating the instance.")
+            print("Error output:", e.stderr)
 
     def resize_event(self, event):
         if hasattr(self, 'movie_label'):
@@ -318,6 +344,7 @@ class PicomcVersionSelector(QWidget):
             "IsRCPenabled": False,
             "CheckUpdate": False,
             "LastPlayed": "",
+            "IsFirstLaunch": True,
             "Instance": "default",
             "Theme": "Dark.json",
             "ThemeBackground": True,
