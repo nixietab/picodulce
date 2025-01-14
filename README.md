@@ -36,9 +36,43 @@
 
 - **Version Management**: Picodulce is designed to download and launch all available game versions, ensuring users have easy access to the latest updates as well as older versions.
 - **Offline and Online Support**: Whether you're connected to Microsoft or not, Picodulce ensures you can still enjoy your game by supporting both offline and online modes.
-- **Integrated Mod Manager**: The latest update includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods.
+- **Integrated Mod Manager**: Includes the [Marroc Mod Manager](https://github.com/nixietab/marroc), enabling users to effortlessly manage and customize their game with mods and texturepacks.
+- **Custom Theme Support**: Create and apply personalized themes with ease. A dedicated repository and guide are [available to help you get started.](https://github.com/nixietab/picodulce-themes)
+
+# Installation
+If you are on windows you may be more interested in a [installer](https://github.com/nixietab/picodulce/releases/latest)
+
+### 1. Clone the repository
+
+``` git clone https://github.com/nixietab/picodulce ```
+
+### 2. (Optional) Set Up a Virtual Environment
+Setting up a virtual environment is recommended to avoid dependency conflicts. Picodulce relies on the path of the `picomc` project, and using a virtual environment helps prevent errors.
+
+Create the virtual environment:
+
+``` python -m venv venv ```
+
+- **Linux/Mac:**  
+  `source venv/bin/activate`
+- **Windows:**  
+  `.\\venv\\Scripts\\activate`
+ 
 
 
+### Install requirements
+
+Now on the venv you can install the requirements safely
+
+```pip install -r requirements.txt ```
+
+### Running the launcher
+
+On the venv run it as a normal python script
+
+```python picodulce.py```
+
+Just make sure you have Java installed for running the actual game
 
 ### About the name
-The name "Picodulce" comes from a popular Argentine candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
+The name "Picodulce" comes from a popular Argentinian candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
