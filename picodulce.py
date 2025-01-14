@@ -176,7 +176,7 @@ class PicomcVersionSelector(QWidget):
 
     def resize_event(self, event):
         if hasattr(self, 'movie_label'):
-            self.movie_label.setGeometry(0, 0, self.width(), self.height())
+            self.movie_label.setGeometry(0, 0, 400, 320)
         event.accept()  # Accept the resize event
 
 
