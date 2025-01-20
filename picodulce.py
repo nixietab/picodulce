@@ -343,6 +343,7 @@ class PicomcVersionSelector(QWidget):
         default_config = {
             "IsRCPenabled": False,
             "CheckUpdate": False,
+            "IsBleeding": False,
             "LastPlayed": "",
             "IsFirstLaunch": True,
             "Instance": "default",
@@ -405,9 +406,14 @@ class PicomcVersionSelector(QWidget):
         check_updates_checkbox = QCheckBox('Check Updates on Start')
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
+        bleeding_edge_checkbox = QCheckBox('Bleeding Edge')
+        bleeding_edge_checkbox.setChecked(self.config.get("IsBleeding", False))
+        bleeding_edge_checkbox.stateChanged.connect(lambda: self.show_bleeding_edge_popup(bleeding_edge_checkbox))
+
         settings_layout.addWidget(title_label)
         settings_layout.addWidget(discord_rcp_checkbox)
         settings_layout.addWidget(check_updates_checkbox)
+        settings_layout.addWidget(bleeding_edge_checkbox)
 
         # Add buttons in the settings tab
         update_button = QPushButton('Check for updates')
@@ -477,7 +483,8 @@ class PicomcVersionSelector(QWidget):
                 discord_rcp_checkbox.isChecked(),
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
-                self.selected_theme  # Pass the selected theme here
+                self.selected_theme,  # Pass the selected theme here
+                bleeding_edge_checkbox.isChecked()  # Pass the bleeding edge setting here
             )
         )
 
@@ -488,6 +495,17 @@ class PicomcVersionSelector(QWidget):
 
         dialog.setLayout(main_layout)
         dialog.exec_()
+
+    def show_bleeding_edge_popup(self, checkbox):
+        if checkbox.isChecked():
+            response = QMessageBox.question(
+                self,
+                "Bleeding Edge Feature",
+                "Enabling 'Bleeding Edge' mode may expose you to unstable and experimental features. Do you want to enable it anyway? In normal mode, updates are only downloaded when a stable release is made.",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if response == QMessageBox.No:
+                checkbox.setChecked(False)
 
     def populate_themes(self, json_files_list_widget):
         themes_folder = os.path.join(os.getcwd(), "themes")
@@ -693,13 +711,14 @@ class PicomcVersionSelector(QWidget):
         ## REPOSITORY BLOCK ENDS
 
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme):
+    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding):
         config_path = "config.json"
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
             "ThemeBackground": theme_background,
-            "Theme": selected_theme
+            "Theme": selected_theme,
+            "IsBleeding": is_bleeding
         }
 
         # Update config values
@@ -1162,18 +1181,26 @@ class PicomcVersionSelector(QWidget):
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
                 logging.info(f"Local version: {local_version}")
+
+                with open("config.json") as config_file:
+                    config = json.load(config_file)
+                    is_bleeding = config.get("IsBleeding", False)
+
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
                     logging.info(f"Remote version: {remote_version}")
-                    if remote_version and remote_version != local_version:
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                    if remote_version and (remote_version != local_version or is_bleeding):
+                        if is_bleeding:
+                            update_message = f"Do you want to update to the bleeding edge version ({remote_version})?"
+                        else:
+                            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
                             self.download_update(remote_version_info)
                     else:
-                        print("Up to Date", "You already have the latest version!")
+                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
                 else:
                     logging.error("Failed to read local version information.")
                     QMessageBox.critical(self, "Error", "Failed to check for updates.")
@@ -1187,12 +1214,20 @@ class PicomcVersionSelector(QWidget):
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
                 logging.info(f"Local version: {local_version}")
+
+                with open("config.json") as config_file:
+                    config = json.load(config_file)
+                    is_bleeding = config.get("IsBleeding", False)
+
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
                     logging.info(f"Remote version: {remote_version}")
-                    if remote_version and remote_version != local_version:
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                    if remote_version and (remote_version != local_version or is_bleeding):
+                        if is_bleeding:
+                            update_message = f"Do you want to update to the bleeding edge version ({remote_version})?"
+                        else:
+                            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
