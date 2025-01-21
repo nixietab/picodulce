@@ -2,3 +2,4 @@ picomc
 PyQt5
 requests
 pypresence
+tqdm
