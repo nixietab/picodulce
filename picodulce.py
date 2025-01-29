@@ -1162,8 +1162,22 @@ class PicomcVersionSelector(QWidget):
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
                 version_number = version_data.get('version', 'unknown version')
+                version_bleeding = version_data.get('versionBleeding', None)
         except (FileNotFoundError, json.JSONDecodeError):
             version_number = 'unknown version'
+            version_bleeding = None
+
+        # Check the configuration for IsBleeding
+        try:
+            with open('config.json', 'r') as config_file:
+                config_data = json.load(config_file)
+                is_bleeding = config_data.get('IsBleeding', False)
+        except (FileNotFoundError, json.JSONDecodeError):
+            is_bleeding = False
+
+        # Use versionBleeding if IsBleeding is true
+        if is_bleeding and version_bleeding:
+            version_number = version_bleeding
 
         about_message = (
             f"PicoDulce Launcher (v{version_number})\n\n"
@@ -1180,7 +1194,9 @@ class PicomcVersionSelector(QWidget):
             with open("version.json") as f:
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
+                local_version_bleeding = local_version_info.get("versionBleeding")
                 logging.info(f"Local version: {local_version}")
+                logging.info(f"Local bleeding version: {local_version_bleeding}")
 
                 with open("config.json") as config_file:
                     config = json.load(config_file)
@@ -1189,10 +1205,20 @@ class PicomcVersionSelector(QWidget):
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
+                    remote_version_bleeding = remote_version_info.get("versionBleeding")
                     logging.info(f"Remote version: {remote_version}")
-                    if remote_version and (remote_version != local_version or is_bleeding):
+                    logging.info(f"Remote bleeding version: {remote_version_bleeding}")
+
+                    if is_bleeding:
+                        remote_version_to_check = remote_version_bleeding
+                        local_version_to_check = local_version_bleeding
+                    else:
+                        remote_version_to_check = remote_version
+                        local_version_to_check = local_version
+                    
+                    if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
-                            update_message = f"Do you want to update to the bleeding edge version ({remote_version})?"
+                            update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
                         else:
                             update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -1213,7 +1239,9 @@ class PicomcVersionSelector(QWidget):
             with open("version.json") as f:
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
+                local_version_bleeding = local_version_info.get("versionBleeding")
                 logging.info(f"Local version: {local_version}")
+                logging.info(f"Local bleeding version: {local_version_bleeding}")
 
                 with open("config.json") as config_file:
                     config = json.load(config_file)
@@ -1222,10 +1250,20 @@ class PicomcVersionSelector(QWidget):
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
+                    remote_version_bleeding = remote_version_info.get("versionBleeding")
                     logging.info(f"Remote version: {remote_version}")
-                    if remote_version and (remote_version != local_version or is_bleeding):
+                    logging.info(f"Remote bleeding version: {remote_version_bleeding}")
+
+                    if is_bleeding:
+                        remote_version_to_check = remote_version_bleeding
+                        local_version_to_check = local_version_bleeding
+                    else:
+                        remote_version_to_check = remote_version
+                        local_version_to_check = local_version
+                    
+                    if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
-                            update_message = f"Do you want to update to the bleeding edge version ({remote_version})?"
+                            update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
                         else:
                             update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
