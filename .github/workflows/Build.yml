@@ -9,6 +9,8 @@ jobs:
   version-release:
     runs-on: windows-latest  # Use Windows 10 runner
 
+    if: github.actor != 'github-actions[bot]'  # Only run if the actor is not the GitHub Actions bot
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -36,7 +38,7 @@ jobs:
       run: | 
         dir actions-temp
         dir
-      
+
     - name: Get version and name from version.json
       id: version_info
       run: |
