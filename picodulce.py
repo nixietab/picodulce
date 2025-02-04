@@ -1226,7 +1226,7 @@ class PicomcVersionSelector(QWidget):
                             # Download and apply the update
                             self.download_update(remote_version_info)
                     else:
-                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
+                        print(f"You already have the latest version!")
                 else:
                     logging.error("Failed to read local version information.")
                     QMessageBox.critical(self, "Error", "Failed to check for updates.")
