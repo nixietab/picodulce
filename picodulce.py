@@ -10,6 +10,7 @@ import requests
 import json
 import os
 import time
+from authser import MinecraftAuthenticator
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
@@ -50,6 +51,10 @@ class PicomcVersionSelector(QWidget):
 
         if self.config.get("IsFirstLaunch", False):
             self.FirstLaunch()
+
+        self.authenticator = MinecraftAuthenticator(self)
+        self.authenticator.auth_finished.connect(self._on_auth_finished)
+
 
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
@@ -1079,19 +1084,36 @@ class PicomcVersionSelector(QWidget):
         return False
 
     def authenticate_account(self, dialog, account_name):
-        # Authenticate a selected account
+        # Clean up the account name
         account_name = account_name.strip().lstrip(" * ")
         if not account_name:
             QMessageBox.warning(dialog, "Warning", "Please select an account to authenticate.")
             return
 
         try:
-            subprocess.run(['picomc', 'account', 'authenticate', account_name], check=True)
-            QMessageBox.information(self, "Success", f"Account '{account_name}' authenticated successfully!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error authenticating account '{account_name}': {e.stderr.decode()}"
+            # Create authenticator instance if it doesn't exist
+            if self.authenticator is None:
+                self.authenticator = MinecraftAuthenticator(self)
+                self.authenticator.auth_finished.connect(self._on_auth_finished)
+
+            # Start authentication process
+            self.authenticator.authenticate(account_name)
+            
+        except Exception as e:
+            error_message = f"Error authenticating account '{account_name}': {str(e)}"
             logging.error(error_message)
-            QMessageBox.critical(self, "Error", error_message)
+            QMessageBox.critical(dialog, "Error", error_message)
+
+    def _on_auth_finished(self, success):
+        if success:
+            QMessageBox.information(self, "Success", "Account authenticated successfully!")
+        else:
+            QMessageBox.critical(self, "Error", "Failed to authenticate account")
+
+        # Cleanup
+        if self.authenticator:
+            self.authenticator.cleanup()
+            self.authenticator = None
 
     def remove_account(self, dialog, username):
         # Remove a selected account
