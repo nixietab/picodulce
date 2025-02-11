@@ -445,24 +445,27 @@ class PicomcVersionSelector(QWidget):
 
         # QListWidget to display available themes
         json_files_label = QLabel('Installed Themes:')
-        json_files_list_widget = QListWidget()
+        self.json_files_list_widget = QListWidget()
 
         # Track selected theme
         self.selected_theme = theme_filename  # Default to current theme
 
+        # Build the list of themes
+        themes_list = self.build_themes_list()
+        
         # Populate themes initially
-        self.populate_themes(json_files_list_widget)
+        self.populate_themes(self.json_files_list_widget, themes_list)
 
         # Update current theme label when a theme is selected
-        json_files_list_widget.itemClicked.connect(
-            lambda: self.on_theme_selected(json_files_list_widget, current_theme_label)
+        self.json_files_list_widget.itemClicked.connect(
+            lambda: self.on_theme_selected(self.json_files_list_widget, current_theme_label)
         )
 
         # Add widgets to the layout
         customization_layout.addWidget(theme_background_checkbox)
         customization_layout.addWidget(current_theme_label)
         customization_layout.addWidget(json_files_label)
-        customization_layout.addWidget(json_files_list_widget)
+        customization_layout.addWidget(self.json_files_list_widget)
 
         # Button to download themes
         download_themes_button = QPushButton("Download More Themes")
@@ -507,9 +510,9 @@ class PicomcVersionSelector(QWidget):
             if response == QMessageBox.No:
                 checkbox.setChecked(False)
 
-    def populate_themes(self, json_files_list_widget):
+    def build_themes_list(self):
         themes_folder = os.path.join(os.getcwd(), "themes")
-        json_files_list_widget.clear()
+        themes_list = []
         if os.path.exists(themes_folder):
             json_files = [f for f in os.listdir(themes_folder) if f.endswith('.json')]
             for json_file in json_files:
@@ -525,15 +528,21 @@ class PicomcVersionSelector(QWidget):
 
                     # Create display text and list item
                     display_text = f"{name}\n{description}\nBy: {author}"
-                    list_item = QListWidgetItem(display_text)
-                    list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
+                    themes_list.append((display_text, json_file))
+        return themes_list
 
-                    # Style the name in bold
-                    font = QFont()
-                    font.setBold(False)
-                    list_item.setFont(font)
+    def populate_themes(self, json_files_list_widget, themes_list):
+        json_files_list_widget.clear()
+        for display_text, json_file in themes_list:
+            list_item = QListWidgetItem(display_text)
+            list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
 
-                    json_files_list_widget.addItem(list_item)
+            # Style the name in bold
+            font = QFont()
+            font.setBold(False)
+            list_item.setFont(font)
+
+            json_files_list_widget.addItem(list_item)
 
         # Apply spacing and styling to the list
         json_files_list_widget.setStyleSheet("""
@@ -551,8 +560,8 @@ class PicomcVersionSelector(QWidget):
         if selected_item:
             self.selected_theme = selected_item.data(Qt.UserRole)
             current_theme_label.setText(f"Current Theme: {self.selected_theme}")
-
-        ## REPOSITORY BLOCK BEGGINS
+            
+     ## REPOSITORY BLOCK BEGGINS
 
     def download_themes_window(self):
         dialog = QDialog(self)
@@ -589,8 +598,15 @@ class PicomcVersionSelector(QWidget):
         main_layout.addLayout(right_layout)
         dialog.setLayout(main_layout)
 
+        dialog.finished.connect(lambda: self.update_themes_list())
+
+
         self.load_themes()
         dialog.exec_()
+
+    def update_themes_list(self):
+        themes_list = self.build_themes_list()
+        self.populate_themes(self.json_files_list_widget, themes_list)
 
     def fetch_themes(self):
         try:
