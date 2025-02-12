@@ -210,6 +210,49 @@ class PicomcVersionSelector(QWidget):
             self.movie_label.setGeometry(0, 0, 400, 320)
         event.accept()  # Accept the resize event
 
+    def load_theme_background(self):
+        """Load and set the theme background image from base64 data in the theme configuration."""
+        if not self.config.get("ThemeBackground", False):  # Default to False if ThemeBackground is missing
+            return
+
+        # Get the base64 string for the background image from the theme file
+        theme_background_base64 = self.theme.get("background_image_base64", "")
+        if not theme_background_base64:
+            print("No background GIF base64 string found in the theme file.")
+            return
+
+        try:
+            # Decode the base64 string to get the binary data
+            background_image_data = QByteArray.fromBase64(theme_background_base64.encode())
+            temp_gif_path = "temp.gif"  # Write the gif into a temp file because Qt stuff
+            with open(temp_gif_path, 'wb') as temp_gif_file:
+                temp_gif_file.write(background_image_data)
+
+            # Create a QMovie object from the temporary file
+            movie = QMovie(temp_gif_path)
+            if movie.isValid():
+                self.setAutoFillBackground(True)
+                palette = self.palette()
+
+                # Set the QMovie to a QLabel
+                self.movie_label = QLabel(self)
+                self.movie_label.setMovie(movie)
+                self.movie_label.setGeometry(0, 0, movie.frameRect().width(), movie.frameRect().height())
+                self.movie_label.setScaledContents(True)  # Ensure the QLabel scales its contents
+                movie.start()
+
+                # Use the QLabel pixmap as the brush texture
+                brush = QBrush(QPixmap(movie.currentPixmap()))
+                brush.setStyle(Qt.TexturePattern)
+                palette.setBrush(QPalette.Window, brush)
+                self.setPalette(palette)
+
+                # Adjust the QLabel size when the window is resized
+                self.movie_label.resizeEvent = self.resize_event
+            else:
+                print("Error: Failed to load background GIF from base64 string.")
+        except Exception as e:
+            print(f"Error: Failed to decode and set background GIF. {e}")
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
@@ -226,44 +269,8 @@ class PicomcVersionSelector(QWidget):
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
 
-        if self.config.get("ThemeBackground", False):  # Default to False if ThemeBackground is missing
-            # Get the base64 string for the background image from the theme file
-            theme_background_base64 = self.theme.get("background_image_base64", "")
-            if theme_background_base64:
-                try:
-                    # Decode the base64 string to get the binary data
-                    background_image_data = QByteArray.fromBase64(theme_background_base64.encode())
-                    temp_gif_path = "temp.gif"  # Write the gif into a temp file because Qt stuff
-                    with open(temp_gif_path, 'wb') as temp_gif_file:
-                        temp_gif_file.write(background_image_data)
-
-                    # Create a QMovie object from the temporary file
-                    movie = QMovie(temp_gif_path)
-                    if movie.isValid():
-                        self.setAutoFillBackground(True)
-                        palette = self.palette()
-
-                        # Set the QMovie to a QLabel
-                        self.movie_label = QLabel(self)
-                        self.movie_label.setMovie(movie)
-                        self.movie_label.setGeometry(0, 0, movie.frameRect().width(), movie.frameRect().height())
-                        self.movie_label.setScaledContents(True)  # Ensure the QLabel scales its contents
-                        movie.start()
-
-                        # Use the QLabel pixmap as the brush texture
-                        brush = QBrush(QPixmap(movie.currentPixmap()))
-                        brush.setStyle(Qt.TexturePattern)
-                        palette.setBrush(QPalette.Window, brush)
-                        self.setPalette(palette)
-
-                        # Adjust the QLabel size when the window is resized
-                        self.movie_label.resizeEvent = self.resize_event
-                    else:
-                        print("Error: Failed to load background GIF from base64 string.")
-                except Exception as e:
-                    print(f"Error: Failed to decode and set background GIF. {e}")
-            else:
-                print("No background GIF base64 string found in the theme file.")
+        # Load theme background
+        self.load_theme_background()
 
         # Create title label
         title_label = QLabel('PicoDulce Launcher')  # Change label text
@@ -328,7 +335,7 @@ class PicomcVersionSelector(QWidget):
         main_layout.setSpacing(20)
 
         self.setLayout(main_layout)
-
+    
     def keyPressEvent(self, event):
         focus_widget = self.focusWidget()
         if event.key() == Qt.Key_Down:
