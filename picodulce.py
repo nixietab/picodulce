@@ -13,32 +13,36 @@ import time
 from authser import MinecraftAuthenticator
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTranslator, QLocale
 from datetime import datetime
+
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class PicomcVersionSelector(QWidget):
+
     def __init__(self):
+        super().__init__()  # Initialize the parent class properly
         self.current_state = "menu"
         self.open_dialogs = []
+        
+        # Load translations before initializing UI
+        self.translators = []
+        self.load_locale("./locales")
+        
         self.check_config_file()
         self.themes_integrity()
         themes_folder = "themes"
-        
-        theme_file = self.config.get("Theme", "Dark.json")
 
-        # Ensure the theme file exists in the themes directory
+        theme_file = self.config.get("Theme", "Dark.json")
         theme_file_path = os.path.join(themes_folder, theme_file)
 
         try:
-            # Load and apply the theme from the file
             self.load_theme_from_file(theme_file_path, app)
             print(f"Theme '{theme_file}' loaded successfully.")
         except Exception as e:
             print(f"Error: Could not load theme '{theme_file}'. Falling back to default theme. {e}")
 
-        super().__init__()
         self.init_ui()
 
         if self.config.get("CheckUpdate", False):
@@ -46,7 +50,7 @@ class PicomcVersionSelector(QWidget):
 
         if self.config.get("IsRCPenabled", False):
             discord_rcp_thread = Thread(target=self.start_discord_rcp)
-            discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
+            discord_rcp_thread.daemon = True
             discord_rcp_thread.start()
 
         if self.config.get("IsFirstLaunch", False):
@@ -55,6 +59,21 @@ class PicomcVersionSelector(QWidget):
         self.authenticator = MinecraftAuthenticator(self)
         self.authenticator.auth_finished.connect(self._on_auth_finished)
 
+    def load_locale(self, locale_dir_path):
+        if not os.path.exists(locale_dir_path):
+            print(f"Warning: Locale directory {locale_dir_path} does not exist")
+            return
+
+        for filename in os.listdir(locale_dir_path):
+            if filename.endswith(".qm"):
+                locale_file_path = os.path.join(locale_dir_path, filename)
+                translator = QTranslator()
+                if translator.load(locale_file_path):
+                    QApplication.instance().installTranslator(translator)
+                    self.translators.append(translator)
+                    print(f"Loaded locale: {locale_file_path}")
+                else:
+                    print(f"Failed to load locale: {locale_file_path}")
 
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
@@ -182,6 +201,8 @@ class PicomcVersionSelector(QWidget):
             print("Theme Integrity OK")
 
 
+
+
     def FirstLaunch(self):
         try:
             self.config_path = "config.json"
@@ -277,7 +298,7 @@ class PicomcVersionSelector(QWidget):
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
 
         # Create installed versions section
-        installed_versions_label = QLabel('Installed Versions:')
+        installed_versions_label = QLabel(self.tr('Installed Versions:'))
         installed_versions_label.setFont(QFont("Arial", 14))
         self.installed_version_combo = QComboBox()
         self.installed_version_combo.setMinimumWidth(200)
@@ -287,32 +308,32 @@ class PicomcVersionSelector(QWidget):
         buttons_layout = QVBoxLayout()
 
         # Create play button for installed versions
-        self.play_button = QPushButton('Play')
+        self.play_button = QPushButton(self.tr('Play'))
         self.play_button.clicked.connect(self.play_instance)
         highlight_color = self.palette().color(QPalette.Highlight)
         self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
         buttons_layout.addWidget(self.play_button)
 
         # Version Manager Button
-        self.open_menu_button = QPushButton('Version Manager')
+        self.open_menu_button = QPushButton(self.tr('Version Manager'))
         self.open_menu_button.clicked.connect(self.open_mod_loader_and_version_menu)
         buttons_layout.addWidget(self.open_menu_button)
 
         # Create button to manage accounts
-        self.manage_accounts_button = QPushButton('Manage Accounts')
+        self.manage_accounts_button = QPushButton(self.tr('Manage Accounts'))
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
 
         # Create a button for the marroc mod loader
-        self.open_marroc_button = QPushButton('Marroc Mod Manager')
+        self.open_marroc_button = QPushButton(self.tr('Marroc Mod Manager'))
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
         # Create grid layout for Settings and About buttons
         grid_layout = QGridLayout()
-        self.settings_button = QPushButton('Settings')
+        self.settings_button = QPushButton(self.tr('Settings'))
         self.settings_button.clicked.connect(self.open_settings_dialog)
-        self.about_button = QPushButton('About')
+        self.about_button = QPushButton(self.tr('About'))
         self.about_button.clicked.connect(self.show_about_dialog)
         
         grid_layout.addWidget(self.settings_button, 0, 0)
