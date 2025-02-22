@@ -417,7 +417,7 @@ class PicomcVersionSelector(QWidget):
 
     def open_settings_dialog(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle('Settings')
+        dialog.setWindowTitle(self.tr('Settings'))
 
         # Make the window resizable
         dialog.setMinimumSize(400, 300)
@@ -429,17 +429,17 @@ class PicomcVersionSelector(QWidget):
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
-        title_label = QLabel('Settings')
+        title_label = QLabel(self.tr('Settings'))
         title_label.setFont(QFont("Arial", 14))
 
         # Create checkboxes for settings tab
-        discord_rcp_checkbox = QCheckBox('Discord Rich Presence')
+        discord_rcp_checkbox = QCheckBox(self.tr('Discord Rich Presence'))
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
 
-        check_updates_checkbox = QCheckBox('Check Updates on Start')
+        check_updates_checkbox = QCheckBox(self.tr('Check Updates on Start'))
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
-        bleeding_edge_checkbox = QCheckBox('Bleeding Edge')
+        bleeding_edge_checkbox = QCheckBox(self.tr('Bleeding Edge'))
         bleeding_edge_checkbox.setChecked(self.config.get("IsBleeding", False))
         bleeding_edge_checkbox.stateChanged.connect(lambda: self.show_bleeding_edge_popup(bleeding_edge_checkbox))
 
@@ -449,13 +449,13 @@ class PicomcVersionSelector(QWidget):
         settings_layout.addWidget(bleeding_edge_checkbox)
 
         # Add buttons in the settings tab
-        update_button = QPushButton('Check for updates')
+        update_button = QPushButton(self.tr('Check for updates'))
         update_button.clicked.connect(self.check_for_update)
 
-        open_game_directory_button = QPushButton('Open game directory')
+        open_game_directory_button = QPushButton(self.tr('Open game directory'))
         open_game_directory_button.clicked.connect(self.open_game_directory)
 
-        stats_button = QPushButton('Stats for Nerds')
+        stats_button = QPushButton(self.tr('Stats for Nerds'))
         stats_button.clicked.connect(self.show_system_info)
 
         settings_layout.addWidget(update_button)
@@ -469,15 +469,15 @@ class PicomcVersionSelector(QWidget):
         customization_layout = QVBoxLayout()
 
         # Create theme background checkbox for customization tab
-        theme_background_checkbox = QCheckBox('Theme Background')
+        theme_background_checkbox = QCheckBox(self.tr('Theme Background'))
         theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
 
         # Label to show currently selected theme
         theme_filename = self.config.get('Theme', 'Dark.json')
-        current_theme_label = QLabel(f"Current Theme: {theme_filename}")
+        current_theme_label = QLabel(self.tr(f"Current Theme: {theme_filename}"))
 
         # QListWidget to display available themes
-        json_files_label = QLabel('Installed Themes:')
+        json_files_label = QLabel(self.tr('Installed Themes:'))
         self.json_files_list_widget = QListWidget()
 
         # Track selected theme
@@ -501,7 +501,7 @@ class PicomcVersionSelector(QWidget):
         customization_layout.addWidget(self.json_files_list_widget)
 
         # Button to download themes
-        download_themes_button = QPushButton("Download More Themes")
+        download_themes_button = QPushButton(self.tr("Download More Themes"))
         download_themes_button.clicked.connect(self.download_themes_window)
 
         customization_layout.addWidget(download_themes_button)
@@ -509,11 +509,11 @@ class PicomcVersionSelector(QWidget):
         customization_tab.setLayout(customization_layout)
 
         # Add the tabs to the TabWidget
-        tab_widget.addTab(settings_tab, "Settings")
-        tab_widget.addTab(customization_tab, "Customization")
+        tab_widget.addTab(settings_tab, self.tr("Settings"))
+        tab_widget.addTab(customization_tab, self.tr("Customization"))
 
         # Save button
-        save_button = QPushButton('Save')
+        save_button = QPushButton(self.tr('Save'))
         save_button.clicked.connect(
             lambda: self.save_settings(
                 discord_rcp_checkbox.isChecked(),
@@ -592,13 +592,13 @@ class PicomcVersionSelector(QWidget):
         selected_item = json_files_list_widget.currentItem()
         if selected_item:
             self.selected_theme = selected_item.data(Qt.UserRole)
-            current_theme_label.setText(f"Current Theme: {self.selected_theme}")
+            current_theme_label.setText(self.tr(f"Current Theme: {self.selected_theme}"))
             
      ## REPOSITORY BLOCK BEGGINS
 
     def download_themes_window(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("Themes Repository")
+        dialog.setWindowTitle(self.tr("Themes Repository"))
         dialog.setGeometry(100, 100, 800, 600)
 
         main_layout = QHBoxLayout(dialog)
@@ -620,7 +620,7 @@ class PicomcVersionSelector(QWidget):
         self.image_label.setStyleSheet("padding: 10px;")
         right_layout.addWidget(self.image_label)
 
-        download_button = QPushButton("Download Theme", dialog)
+        download_button = QPushButton(self.tr("Download Theme"), dialog)
         download_button.clicked.connect(self.theme_download)
         right_layout.addWidget(download_button)
 
@@ -632,7 +632,6 @@ class PicomcVersionSelector(QWidget):
         dialog.setLayout(main_layout)
 
         dialog.finished.connect(lambda: self.update_themes_list())
-
 
         self.load_themes()
         dialog.exec_()
@@ -647,18 +646,18 @@ class PicomcVersionSelector(QWidget):
                 config = json.load(config_file)
             url = config.get("ThemeRepository")
             if not url:
-                raise ValueError("ThemeRepository is not defined in config.json")
+                raise ValueError(self.tr("ThemeRepository is not defined in config.json"))
             response = requests.get(url)
             response.raise_for_status()
             return response.json()
         except (FileNotFoundError, json.JSONDecodeError) as config_error:
-            self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
+            self.show_error_popup(self.tr("Error reading configuration"), self.tr(f"An error occurred while reading config.json: {config_error}"))
             return {}
         except requests.exceptions.RequestException as fetch_error:
-            self.show_error_popup("Error fetching themes", f"An error occurred while fetching themes: {fetch_error}")
+            self.show_error_popup(self.tr("Error fetching themes"), self.tr(f"An error occurred while fetching themes: {fetch_error}"))
             return {}
         except ValueError as value_error:
-            self.show_error_popup("Configuration Error", str(value_error))
+            self.show_error_popup(self.tr("Configuration Error"), self.tr(str(value_error)))
             return {}
 
     def download_theme_json(self, theme_url, theme_name):
@@ -670,15 +669,15 @@ class PicomcVersionSelector(QWidget):
             theme_filename = os.path.join('themes', f'{theme_name}.json')
             with open(theme_filename, 'wb') as f:
                 f.write(response.content)
-            print(f"Downloaded {theme_name} theme to {theme_filename}")
+            print(self.tr(f"Downloaded {theme_name} theme to {theme_filename}"))
         except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error downloading theme", f"An error occurred while downloading {theme_name}: {e}")
+            self.show_error_popup(self.tr("Error downloading theme"), self.tr(f"An error occurred while downloading {theme_name}: {e}"))
 
     def show_error_popup(self, title, message):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
-        msg.setWindowTitle(title)
-        msg.setText(message)
+        msg.setWindowTitle(self.tr(title))
+        msg.setText(self.tr(message))
         msg.exec_()
 
     def is_theme_installed(self, theme_name):
@@ -692,7 +691,7 @@ class PicomcVersionSelector(QWidget):
         for theme in themes:
             theme_display_name = f"{theme['name']} by {theme['author']}"
             if self.is_theme_installed(theme['name']):
-                theme_display_name += " [I]"
+                theme_display_name += self.tr(" [I]")
                 installed_themes.append(theme_display_name)
             else:
                 uninstalled_themes.append(theme_display_name)
@@ -712,11 +711,11 @@ class PicomcVersionSelector(QWidget):
             theme = self.find_theme_by_name(theme_name)
             if theme:
                 self.details_label.setText(
-                    f"<b>Name:</b> {theme['name']}<br>"
-                    f"<b>Description:</b> {theme['description']}<br>"
-                    f"<b>Author:</b> {theme['author']}<br>"
-                    f"<b>License:</b> {theme['license']}<br>"
-                    f"<b>Link:</b> <a href='{theme['link']}'>{theme['link']}</a><br>"
+                    self.tr(f"<b>Name:</b> {theme['name']}<br>"
+                            f"<b>Description:</b> {theme['description']}<br>"
+                            f"<b>Author:</b> {theme['author']}<br>"
+                            f"<b>License:</b> {theme['license']}<br>"
+                            f"<b>Link:</b> <a href='{theme['link']}'>{theme['link']}</a><br>")
                 )
                 self.details_label.setTextFormat(Qt.RichText)
                 self.details_label.setOpenExternalLinks(True)
@@ -736,7 +735,7 @@ class PicomcVersionSelector(QWidget):
             response.raise_for_status()
             return response.content
         except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error fetching image", f"An error occurred while fetching the image: {e}")
+            self.show_error_popup(self.tr("Error fetching image"), self.tr(f"An error occurred while fetching the image: {e}"))
             return None
 
     def find_theme_by_name(self, theme_name):
@@ -756,7 +755,7 @@ class PicomcVersionSelector(QWidget):
                 theme_url = theme["link"]
                 self.download_theme_json(theme_url, theme_name)
                 self.load_themes()
-
+            
         ## REPOSITORY BLOCK ENDS
 
 
