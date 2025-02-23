@@ -10,12 +10,14 @@ import requests
 import json
 import os
 import time
+
 from authser import MinecraftAuthenticator
+from healtcheck import HealthCheck
+
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTranslator, QLocale
 from datetime import datetime
-
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -30,11 +32,15 @@ class PicomcVersionSelector(QWidget):
         self.translators = []
         self.load_locale("./locales")
         
-        self.check_config_file()
-        self.themes_integrity()
-        themes_folder = "themes"
+        # Set up and use the health_check module
+        health_checker = HealthCheck()
+        health_checker.themes_integrity()
+        health_checker.check_config_file()
+        self.config = health_checker.config
 
+        themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
+
         theme_file_path = os.path.join(themes_folder, theme_file)
 
         try:
@@ -60,20 +66,45 @@ class PicomcVersionSelector(QWidget):
         self.authenticator.auth_finished.connect(self._on_auth_finished)
 
     def load_locale(self, locale_dir_path):
+        self.config_path = "config.json"
         if not os.path.exists(locale_dir_path):
             print(f"Warning: Locale directory {locale_dir_path} does not exist")
             return
 
+        # Try to load and read config.json
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as config_file:
+                config = json.load(config_file)
+                locale_code = config.get("Locale", "")
+        except FileNotFoundError:
+            print(f"Warning: Config file {self.config_path} not found")
+            return
+        except json.JSONDecodeError:
+            print(f"Error: Invalid JSON in {self.config_path}")
+            return
+        
+        if not locale_code:
+            print("Warning: No locale specified in config.json")
+            return
+
+        # Look for matching locale file
+        locale_pattern = f"*_{locale_code}.qm"  # Pattern like *_es.qm for Spanish
+        found_matching_locale = False
+
         for filename in os.listdir(locale_dir_path):
-            if filename.endswith(".qm"):
+            if filename.endswith(".qm") and f"_{locale_code}" in filename:
                 locale_file_path = os.path.join(locale_dir_path, filename)
                 translator = QTranslator()
                 if translator.load(locale_file_path):
                     QApplication.instance().installTranslator(translator)
                     self.translators.append(translator)
                     print(f"Loaded locale: {locale_file_path}")
+                    found_matching_locale = True
                 else:
                     print(f"Failed to load locale: {locale_file_path}")
+
+        if not found_matching_locale:
+            print(f"Warning: No matching locale file found for language code: {locale_code}")
 
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
@@ -133,75 +164,6 @@ class PicomcVersionSelector(QWidget):
             app.setStyleSheet(stylesheet)
         else:
             print("Theme dosn't seem to have a stylesheet")
-
-    def themes_integrity(self):
-        # Define folder and file paths
-        themes_folder = "themes"
-        dark_theme_file = os.path.join(themes_folder, "Dark.json")
-        native_theme_file = os.path.join(themes_folder, "Native.json")
-
-        # Define the default content for Dark.json
-        dark_theme_content = {
-            "manifest": {
-                "name": "Dark",
-                "description": "The default picodulce launcher theme",
-                "author": "Nixietab",
-                "license": "MIT"
-            },
-            "palette": {
-                "Window": "#353535",
-                "WindowText": "#ffffff",
-                "Base": "#191919",
-                "AlternateBase": "#353535",
-                "ToolTipBase": "#ffffff",
-                "ToolTipText": "#ffffff",
-                "Text": "#ffffff",
-                "Button": "#353535",
-                "ButtonText": "#ffffff",
-                "BrightText": "#ff0000",
-                "Link": "#2a82da",
-                "Highlight": "#4bb679",
-                "HighlightedText": "#ffffff"
-            },
-            "background_image_base64": ""
-        }
-
-        # Define the default content for Native.json
-        native_theme_content = {
-            "manifest": {
-                "name": "Native",
-                "description": "The native looks of your OS",
-                "author": "Your Qt Style",
-                "license": "Any"
-            },
-            "palette": {}
-        }
-
-        # Step 1: Ensure the themes folder exists
-        if not os.path.exists(themes_folder):
-            print(f"Creating folder: {themes_folder}")
-            os.makedirs(themes_folder)
-
-        # Step 2: Ensure Dark.json exists
-        if not os.path.isfile(dark_theme_file):
-            print(f"Creating file: {dark_theme_file}")
-            with open(dark_theme_file, "w", encoding="utf-8") as file:
-                json.dump(dark_theme_content, file, indent=2)
-            print("Dark.json has been created successfully.")
-
-        # Step 3: Ensure Native.json exists
-        if not os.path.isfile(native_theme_file):
-            print(f"Creating file: {native_theme_file}")
-            with open(native_theme_file, "w", encoding="utf-8") as file:
-                json.dump(native_theme_content, file, indent=2)
-            print("Native.json has been created successfully.")
-
-        # Check if both files exist and print OK message
-        if os.path.isfile(dark_theme_file) and os.path.isfile(native_theme_file):
-            print("Theme Integrity OK")
-
-
-
 
     def FirstLaunch(self):
         try:
@@ -370,50 +332,6 @@ class PicomcVersionSelector(QWidget):
                 focus_widget.showPopup()  # Show dropdown for combo box
         else:
             super().keyPressEvent(event)
-
-    def check_config_file(self):
-        config_path = "config.json"
-        default_config = {
-            "IsRCPenabled": False,
-            "CheckUpdate": False,
-            "IsBleeding": False,
-            "LastPlayed": "",
-            "IsFirstLaunch": True,
-            "Instance": "default",
-            "Theme": "Dark.json",
-            "ThemeBackground": True,
-            "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"
-        }
-
-        # Step 1: Check if the file exists; if not, create it with default values
-        if not os.path.exists(config_path):
-            with open(config_path, "w") as config_file:
-                json.dump(default_config, config_file, indent=4)
-            self.config = default_config
-            return
-
-        # Step 2: Try loading the config file, handle invalid JSON
-        try:
-            with open(config_path, "r") as config_file:
-                self.config = json.load(config_file)
-        except (json.JSONDecodeError, ValueError):
-            # File is corrupted, overwrite it with default configuration
-            with open(config_path, "w") as config_file:
-                json.dump(default_config, config_file, indent=4)
-            self.config = default_config
-            return
-
-        # Step 3: Check for missing keys and add defaults if necessary
-        updated = False
-        for key, value in default_config.items():
-            if key not in self.config:  # Field is missing
-                self.config[key] = value
-                updated = True
-
-        # Step 4: Save the repaired config back to the file
-        if updated:
-            with open(config_path, "w") as config_file:
-                json.dump(self.config, config_file, indent=4)
 
     def open_settings_dialog(self):
         dialog = QDialog(self)
@@ -782,20 +700,6 @@ class PicomcVersionSelector(QWidget):
             "Settings saved successfully!\n\nTo apply the changes, please restart the launcher."
         )
         self.__init__()
-
-    def get_palette(self, palette_type):
-        """Retrieve the corresponding palette based on the palette type."""
-        palettes = {
-            "Dark": self.create_dark_palette,
-            "Obsidian": self.create_obsidian_palette,
-            "Redstone": self.create_redstone_palette,
-            "Alpha": self.create_alpha_palette,
-            "Strawberry": self.create_strawberry_palette,
-            "Native": self.create_native_palette,
-            "Christmas": self.create_christmas_palette,
-        }
-        # Default to dark palette if the type is not specified or invalid
-        return palettes.get(palette_type, self.create_dark_palette)()
 
     def get_system_info(self):
         # Get system information
@@ -1235,10 +1139,10 @@ class PicomcVersionSelector(QWidget):
         try:
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
-                version_number = version_data.get('version', self.tr('unknown version'))
+                version_number = version_data.get('version', 'unknown version')
                 version_bleeding = version_data.get('versionBleeding', None)
         except (FileNotFoundError, json.JSONDecodeError):
-            version_number = self.tr('unknown version')
+            version_number = 'unknown version'
             version_bleeding = None
 
         # Check the configuration for IsBleeding
@@ -1253,17 +1157,18 @@ class PicomcVersionSelector(QWidget):
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
+        # Create the about message without translation for the version placeholder
         about_message = self.tr(
-            "PicoDulce Launcher (v{version})\n\n"
+            "PicoDulce Launcher (v{0})\n\n"
             "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
             "Credits:\n"
             "Nixietab: Code and UI design\n"
             "Wabaano: Graphic design\n"
             "Olinad: Christmas!!!!"
-        ).format(version=version_number)
+        ).format(version_number)
 
         QMessageBox.about(self, self.tr("About"), about_message)
-
+            
     def check_for_update_start(self):
         try:
             with open("version.json") as f:
