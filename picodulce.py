@@ -1008,11 +1008,11 @@ class PicomcVersionSelector(QWidget):
         # Main account management dialog
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Manage Accounts')
+        dialog.setWindowTitle(self.tr('Manage Accounts'))
         dialog.setFixedSize(400, 250)
 
         # Title
-        title_label = QLabel('Manage Accounts')
+        title_label = QLabel(self.tr('Manage Accounts'))
         title_label.setFont(QFont("Arial", 14))
         title_label.setAlignment(Qt.AlignCenter)  # Center the text
         # Dropdown for selecting accounts
@@ -1020,17 +1020,17 @@ class PicomcVersionSelector(QWidget):
         self.populate_accounts(account_combo)
 
         # Buttons
-        create_account_button = QPushButton('Create Account')
+        create_account_button = QPushButton(self.tr('Create Account'))
         create_account_button.clicked.connect(self.open_create_account_dialog)
 
-        authenticate_button = QPushButton('Authenticate Account')
+        authenticate_button = QPushButton(self.tr('Authenticate Account'))
         authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
 
-        remove_account_button = QPushButton('Remove Account')
+        remove_account_button = QPushButton(self.tr('Remove Account'))
         remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
 
         # New button to set the account idk
-        set_default_button = QPushButton('Select')
+        set_default_button = QPushButton(self.tr('Select'))
         set_default_button.setFixedWidth(100)  # Set button width to a quarter
         set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
 
@@ -1058,15 +1058,15 @@ class PicomcVersionSelector(QWidget):
         # Dialog for creating a new account
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Create Account')
+        dialog.setWindowTitle(self.tr('Create Account'))
         dialog.setFixedSize(300, 150)
 
         username_input = QLineEdit()
-        username_input.setPlaceholderText('Enter Username')
+        username_input.setPlaceholderText(self.tr('Enter Username'))
 
-        microsoft_checkbox = QCheckBox('Microsoft Account')
+        microsoft_checkbox = QCheckBox(self.tr('Microsoft Account'))
 
-        create_button = QPushButton('Create')
+        create_button = QPushButton(self.tr('Create'))
         create_button.clicked.connect(lambda: self.create_account(dialog, username_input.text(), microsoft_checkbox.isChecked()))
 
         layout = QVBoxLayout()
@@ -1083,11 +1083,12 @@ class PicomcVersionSelector(QWidget):
         username = username.strip()
 
         if not username:
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            QMessageBox.warning(dialog, self.tr("Warning"), self.tr("Username cannot be blank."))
             return
 
         if not self.is_valid_username(username):
-            QMessageBox.warning(dialog, "Warning", "Invalid username. Usernames must be 3-16 characters long and can only contain letters, numbers, and underscores.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Invalid username. Usernames must be 3-16 characters long and can only contain letters, numbers, and underscores."))
             return
 
         try:
@@ -1096,13 +1097,14 @@ class PicomcVersionSelector(QWidget):
                 command.append('--ms')
 
             subprocess.run(command, check=True)
-            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
+            QMessageBox.information(dialog, self.tr("Success"), 
+                self.tr("Account '{username}' created successfully!").format(username=username))
             self.populate_accounts_for_all_dialogs()
             dialog.accept()
         except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
+            error_message = self.tr("Error creating account: {error}").format(error=e.stderr.decode())
             logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
+            QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
     def is_valid_username(self, username):
         # Validate the username according to Minecraft's rules
@@ -1114,7 +1116,8 @@ class PicomcVersionSelector(QWidget):
         # Clean up the account name
         account_name = account_name.strip().lstrip(" * ")
         if not account_name:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to authenticate.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Please select an account to authenticate."))
             return
 
         try:
@@ -1127,15 +1130,18 @@ class PicomcVersionSelector(QWidget):
             self.authenticator.authenticate(account_name)
             
         except Exception as e:
-            error_message = f"Error authenticating account '{account_name}': {str(e)}"
+            error_message = self.tr("Error authenticating account '{account}': {error}").format(
+                account=account_name, error=str(e))
             logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
+            QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
     def _on_auth_finished(self, success):
         if success:
-            QMessageBox.information(self, "Success", "Account authenticated successfully!")
+            QMessageBox.information(self, self.tr("Success"), 
+                self.tr("Account authenticated successfully!"))
         else:
-            QMessageBox.critical(self, "Error", "Failed to authenticate account")
+            QMessageBox.critical(self, self.tr("Error"), 
+                self.tr("Failed to authenticate account"))
 
         # Cleanup
         if self.authenticator:
@@ -1146,20 +1152,23 @@ class PicomcVersionSelector(QWidget):
         # Remove a selected account
         username = username.strip().lstrip(" * ")
         if not username:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Please select an account to remove."))
             return
 
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(dialog, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        confirm_message = self.tr("Are you sure you want to remove the account '{username}'?\nThis action cannot be undone.").format(username=username)
+        confirm_dialog = QMessageBox.question(dialog, self.tr("Confirm Removal"), 
+            confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm_dialog == QMessageBox.Yes:
             try:
                 subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                QMessageBox.information(dialog, "Success", f"Account '{username}' removed successfully!")
+                QMessageBox.information(dialog, self.tr("Success"), 
+                    self.tr("Account '{username}' removed successfully!").format(username=username))
                 self.populate_accounts_for_all_dialogs()
             except subprocess.CalledProcessError as e:
-                error_message = f"Error removing account: {e.stderr.decode()}"
+                error_message = self.tr("Error removing account: {error}").format(error=e.stderr.decode())
                 logging.error(error_message)
-                QMessageBox.critical(dialog, "Error", error_message)
+                QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
 
     def populate_accounts(self, account_combo):
@@ -1226,10 +1235,10 @@ class PicomcVersionSelector(QWidget):
         try:
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
-                version_number = version_data.get('version', 'unknown version')
+                version_number = version_data.get('version', self.tr('unknown version'))
                 version_bleeding = version_data.get('versionBleeding', None)
         except (FileNotFoundError, json.JSONDecodeError):
-            version_number = 'unknown version'
+            version_number = self.tr('unknown version')
             version_bleeding = None
 
         # Check the configuration for IsBleeding
@@ -1244,15 +1253,16 @@ class PicomcVersionSelector(QWidget):
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
-        about_message = (
-            f"PicoDulce Launcher (v{version_number})\n\n"
+        about_message = self.tr(
+            "PicoDulce Launcher (v{version})\n\n"
             "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
             "Credits:\n"
             "Nixietab: Code and UI design\n"
             "Wabaano: Graphic design\n"
             "Olinad: Christmas!!!!"
-        )
-        QMessageBox.about(self, "About", about_message)
+        ).format(version=version_number)
+
+        QMessageBox.about(self, self.tr("About"), about_message)
 
     def check_for_update_start(self):
         try:
@@ -1718,7 +1728,7 @@ class ModLoaderAndVersionMenu(QDialog):
         layout = QVBoxLayout(install_mod_tab)
 
         # Create title label
-        title_label = QLabel('Mod Loader Installer')
+        title_label = QLabel(self.tr('Mod Loader Installer'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
@@ -1743,7 +1753,7 @@ class ModLoaderAndVersionMenu(QDialog):
         self.fabric_checkbox.clicked.connect(update_versions)
 
         # Create install button
-        install_button = QPushButton('Install')
+        install_button = QPushButton(self.tr('Install'))
         install_button.clicked.connect(lambda: self.install_mod_loader(
             self.version_combo_mod.currentText(), 
             self.forge_checkbox.isChecked(), 
@@ -1755,15 +1765,15 @@ class ModLoaderAndVersionMenu(QDialog):
         layout = QVBoxLayout(download_version_tab)
 
         # Create title label
-        title_label = QLabel('Download Version')
+        title_label = QLabel(self.tr('Download Version'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
         # Create checkboxes for different version types
-        self.release_checkbox = QCheckBox('Releases')
-        self.snapshot_checkbox = QCheckBox('Snapshots')
-        self.alpha_checkbox = QCheckBox('Alpha')
-        self.beta_checkbox = QCheckBox('Beta')
+        self.release_checkbox = QCheckBox(self.tr('Releases'))
+        self.snapshot_checkbox = QCheckBox(self.tr('Snapshots'))
+        self.alpha_checkbox = QCheckBox(self.tr('Alpha'))
+        self.beta_checkbox = QCheckBox(self.tr('Beta'))
         layout.addWidget(self.release_checkbox)
         layout.addWidget(self.snapshot_checkbox)
         layout.addWidget(self.alpha_checkbox)
@@ -1823,10 +1833,10 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def show_popup(self):
         self.popup = QDialog(self)
-        self.popup.setWindowTitle("Installing Version")
+        self.popup.setWindowTitle(self.tr("Installing Version"))
         layout = QVBoxLayout(self.popup)
 
-        label = QLabel("The version is being installed...")
+        label = QLabel(self.tr("The version is being installed..."))
         layout.addWidget(label)
 
         movie = QMovie("drums.gif")
@@ -1880,7 +1890,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def install_mod_loader(self, version, install_forge, install_fabric):
         if not install_forge and not install_fabric:
-            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            QMessageBox.warning(self, self.tr("Select Mod Loader"), self.tr("Please select at least one mod loader."))
             return
 
         mod_loader = None
