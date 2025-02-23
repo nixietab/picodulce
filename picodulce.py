@@ -1168,7 +1168,7 @@ class PicomcVersionSelector(QWidget):
         ).format(version_number)
 
         QMessageBox.about(self, self.tr("About"), about_message)
-            
+
     def check_for_update_start(self):
         try:
             with open("version.json") as f:
@@ -1278,21 +1278,48 @@ class PicomcVersionSelector(QWidget):
             update_folder = "update"
             if not os.path.exists(update_folder):
                 os.makedirs(update_folder)
+
             for link in version_info.get("links", []):
-                filename = os.path.basename(link)
+                # Get the relative path from the URL
+                parsed_url = urllib.parse.urlparse(link)
+                relative_path = parsed_url.path.lstrip('/')
+                # Remove any repository specific parts if present
+                parts = relative_path.split('/', 3)
+                if len(parts) > 3:  # If URL contains owner/repo/branch/path format
+                    relative_path = parts[3]
+                
+                # Create the full path in the update folder
+                full_path = os.path.join(update_folder, relative_path)
+                # Create the directory structure
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                
+                # Download the file
                 response = requests.get(link, stream=True)
                 if response.status_code == 200:
-                    with open(os.path.join(update_folder, filename), 'wb') as f:
+                    with open(full_path, 'wb') as f:
                         for chunk in response.iter_content(chunk_size=1024):
                             f.write(chunk)
+                    logging.info(f"Successfully downloaded: {relative_path}")
                 else:
-                    QMessageBox.critical(self, "Error", f"Failed to download update file: {filename}")
+                    QMessageBox.critical(self, "Error", f"Failed to download update file: {relative_path}")
+                    raise Exception(f"Failed to download {relative_path}")
             
-            # Move downloaded files one directory up
-            for file in os.listdir(update_folder):
-                src = os.path.join(update_folder, file)
-                dst = os.path.join(os.path.dirname(update_folder), file)
-                shutil.move(src, dst)
+            # Move downloaded files while preserving directory structure
+            def copy_tree_up(src, dst_parent):
+                for item in os.listdir(src):
+                    s = os.path.join(src, item)
+                    d = os.path.join(dst_parent, item)
+                    if os.path.isdir(s):
+                        if not os.path.exists(d):
+                            os.makedirs(d)
+                        copy_tree_up(s, dst_parent)
+                    else:
+                        if os.path.exists(d):
+                            os.remove(d)  # Remove existing file if it exists
+                        shutil.move(s, d)
+
+            # Move files one directory up while preserving structure
+            copy_tree_up(update_folder, os.path.dirname(update_folder))
             
             # Remove the update folder
             shutil.rmtree(update_folder)
@@ -1301,7 +1328,7 @@ class PicomcVersionSelector(QWidget):
         except Exception as e:
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
-
+        
     def start_discord_rcp(self):
         from pypresence import Presence
         import time
