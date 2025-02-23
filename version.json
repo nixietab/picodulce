@@ -8,7 +8,7 @@
     "https://raw.githubusercontent.com/nixietab/picodulce/main/marroc.py",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/holiday.ico",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/authser.py",
-    "https://raw.githubusercontent.com/nixietab/picodulce/refs/heads/updates-v2/locales/bogosbinted.json"
+    "https://raw.githubusercontent.com/nixietab/picodulce/updates-v2/locales/bogosbinted.json"
   ],
   "versionBleeding": "0.12-170"
 }
