@@ -28,15 +28,17 @@ class PicomcVersionSelector(QWidget):
         self.current_state = "menu"
         self.open_dialogs = []
         
-        # Load translations before initializing UI
-        self.translators = []
-        self.load_locale("./locales")
         
         # Set up and use the health_check module
         health_checker = HealthCheck()
         health_checker.themes_integrity()
         health_checker.check_config_file()
         self.config = health_checker.config
+        health_checker.locales_integrity()
+
+        # Load translations before initializing UI
+        self.translators = []
+        self.load_locale("./locales")
 
         themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
@@ -88,7 +90,7 @@ class PicomcVersionSelector(QWidget):
             return
 
         # Look for matching locale file
-        locale_pattern = f"*_{locale_code}.qm"  # Pattern like *_es.qm for Spanish
+        locale_pattern = f"*_{locale_code}.qm"  # Pattern like stuff
         found_matching_locale = False
 
         for filename in os.listdir(locale_dir_path):
@@ -366,6 +368,30 @@ class PicomcVersionSelector(QWidget):
         settings_layout.addWidget(check_updates_checkbox)
         settings_layout.addWidget(bleeding_edge_checkbox)
 
+        # Add language dropdown
+        language_label = QLabel(self.tr('Language'))
+        language_dropdown = QComboBox()
+        languages = {
+            "English": "en",
+            "Spanish": "es",
+            "French": "fr",
+            "German": "de"
+            # Here will be more
+        }
+        
+        # Populate dropdown with language options
+        for lang_name, lang_code in languages.items():
+            language_dropdown.addItem(lang_name, lang_code)
+        
+        # Set the current language in the dropdown
+        current_language_code = self.config.get('Locale', 'en')
+        current_language_index = language_dropdown.findData(current_language_code)
+        if current_language_index != -1:
+            language_dropdown.setCurrentIndex(current_language_index)
+
+        settings_layout.addWidget(language_label)
+        settings_layout.addWidget(language_dropdown)
+
         # Add buttons in the settings tab
         update_button = QPushButton(self.tr('Check for updates'))
         update_button.clicked.connect(self.check_for_update)
@@ -438,7 +464,8 @@ class PicomcVersionSelector(QWidget):
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
                 self.selected_theme,  # Pass the selected theme here
-                bleeding_edge_checkbox.isChecked()  # Pass the bleeding edge setting here
+                bleeding_edge_checkbox.isChecked(),  # Pass the bleeding edge setting here
+                language_dropdown.currentData()  # Pass the selected language code here
             )
         )
 
@@ -677,14 +704,15 @@ class PicomcVersionSelector(QWidget):
         ## REPOSITORY BLOCK ENDS
 
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding):
+    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding, selected_language):
         config_path = "config.json"
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
             "ThemeBackground": theme_background,
             "Theme": selected_theme,
-            "IsBleeding": is_bleeding
+            "IsBleeding": is_bleeding,
+            "Locale": selected_language
         }
 
         # Update config values
@@ -1195,7 +1223,7 @@ class PicomcVersionSelector(QWidget):
                     else:
                         remote_version_to_check = remote_version
                         local_version_to_check = local_version
-                    
+
                     if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
                             update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
@@ -1240,7 +1268,7 @@ class PicomcVersionSelector(QWidget):
                     else:
                         remote_version_to_check = remote_version
                         local_version_to_check = local_version
-                    
+
                     if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
                             update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
@@ -1276,34 +1304,19 @@ class PicomcVersionSelector(QWidget):
     def download_update(self, version_info):
         try:
             update_folder = "update"
+            locales_folder = "locales"
+
             if not os.path.exists(update_folder):
                 os.makedirs(update_folder)
 
+            # Download regular update files
             for link in version_info.get("links", []):
-                # Get the relative path from the URL
-                parsed_url = urllib.parse.urlparse(link)
-                relative_path = parsed_url.path.lstrip('/')
-                # Remove any repository specific parts if present
-                parts = relative_path.split('/', 3)
-                if len(parts) > 3:  # If URL contains owner/repo/branch/path format
-                    relative_path = parts[3]
-                
-                # Create the full path in the update folder
-                full_path = os.path.join(update_folder, relative_path)
-                # Create the directory structure
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                
-                # Download the file
-                response = requests.get(link, stream=True)
-                if response.status_code == 200:
-                    with open(full_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=1024):
-                            f.write(chunk)
-                    logging.info(f"Successfully downloaded: {relative_path}")
-                else:
-                    QMessageBox.critical(self, "Error", f"Failed to download update file: {relative_path}")
-                    raise Exception(f"Failed to download {relative_path}")
-            
+                self.download_file(link, update_folder)
+
+            # Download locale files
+            for link in version_info.get("locales", []):
+                self.download_file(link, locales_folder)
+
             # Move downloaded files while preserving directory structure
             def copy_tree_up(src, dst_parent):
                 for item in os.listdir(src):
@@ -1320,15 +1333,46 @@ class PicomcVersionSelector(QWidget):
 
             # Move files one directory up while preserving structure
             copy_tree_up(update_folder, os.path.dirname(update_folder))
-            
-            # Remove the update folder
+            copy_tree_up(locales_folder, os.path.dirname(locales_folder))
+
+            # Remove the update folders
             shutil.rmtree(update_folder)
-            
+            shutil.rmtree(locales_folder)
+
             QMessageBox.information(self, "Update", "Updates downloaded successfully.")
         except Exception as e:
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
-        
+
+    def download_file(self, link, folder):
+        try:
+            # Get the relative path from the URL
+            parsed_url = urllib.parse.urlparse(link)
+            relative_path = parsed_url.path.lstrip('/')
+            # Remove any repository-specific parts if present
+            parts = relative_path.split('/', 3)
+            if len(parts) > 3:  # If URL contains owner/repo/branch/path format
+                relative_path = parts[3]
+            
+            # Create the full path in the specified folder
+            full_path = os.path.join(folder, relative_path)
+            # Create the directory structure
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+            # Download the file
+            response = requests.get(link, stream=True)
+            if response.status_code == 200:
+                with open(full_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        f.write(chunk)
+                logging.info(f"Successfully downloaded: {relative_path}")
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to download update file: {relative_path}")
+                raise Exception(f"Failed to download {relative_path}")
+        except Exception as e:
+            logging.error("Error downloading file: %s", str(e))
+            QMessageBox.critical(self, "Error", f"Failed to download file: {link}")
+            
     def start_discord_rcp(self):
         from pypresence import Presence
         import time
