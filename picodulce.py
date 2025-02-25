@@ -1185,7 +1185,6 @@ class PicomcVersionSelector(QWidget):
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
-        # Create the about message without translation for the version placeholder
         about_message = self.tr(
             "PicoDulce Launcher (v{0})\n\n"
             "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
@@ -1437,15 +1436,15 @@ class DownloadThread(QThread):
     def run(self):
         try:
             subprocess.run(['picomc', 'version', 'prepare', self.version], check=True)
-            self.completed.emit(True, f"Version {self.version} prepared successfully!")
+            self.completed.emit(True, self.tr(f"Version {self.version} prepared successfully!"))
         except subprocess.CalledProcessError as e:
-            error_message = f"Error preparing {self.version}: {e.stderr.decode()}"
+            error_message = self.tr(f"Error preparing {self.version}: {e.stderr.decode()}")
             self.completed.emit(False, error_message)
 
 class ModLoaderAndVersionMenu(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mod Loader and Version Menu")
+        self.setWindowTitle(self.tr("Mod Loader and Version Menu"))
         self.setGeometry(100, 100, 400, 300)
 
         main_layout = QVBoxLayout(self)
@@ -1458,9 +1457,9 @@ class ModLoaderAndVersionMenu(QDialog):
         download_version_tab = QWidget()
         instances_tab = QWidget()  # New tab for instances
 
-        tab_widget.addTab(download_version_tab, "Download Version")
-        tab_widget.addTab(install_mod_tab, "Install Mod Loader")
-        tab_widget.addTab(instances_tab, "Instances")  # Add the new tab
+        tab_widget.addTab(download_version_tab, self.tr("Download Version"))
+        tab_widget.addTab(install_mod_tab, self.tr("Install Mod Loader"))
+        tab_widget.addTab(instances_tab, self.tr("Instances"))  # Add the new tab
 
         # Add content to "Install Mod Loader" tab
         self.setup_install_mod_loader_tab(install_mod_tab)
@@ -1476,12 +1475,12 @@ class ModLoaderAndVersionMenu(QDialog):
         layout = QVBoxLayout(instances_tab)
 
         # Create title label
-        title_label = QLabel('Manage Minecraft Instances')
+        title_label = QLabel(self.tr('Manage Minecraft Instances'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
         # Create a label to display the current instance
-        self.current_instance_label = QLabel('Loading...')  # Placeholder text
+        self.current_instance_label = QLabel(self.tr('Loading...'))  # Placeholder text
         layout.addWidget(self.current_instance_label)
 
         # Create a QListWidget to display the instances
@@ -1490,10 +1489,10 @@ class ModLoaderAndVersionMenu(QDialog):
 
         # Create input field and button to create a new instance
         self.create_instance_input = QLineEdit()
-        self.create_instance_input.setPlaceholderText("Enter instance name")
+        self.create_instance_input.setPlaceholderText(self.tr("Enter instance name"))
         layout.addWidget(self.create_instance_input)
 
-        create_instance_button = QPushButton("Create Instance")
+        create_instance_button = QPushButton(self.tr("Create Instance"))
         create_instance_button.clicked.connect(self.create_instance)
         layout.addWidget(create_instance_button)
 
@@ -1519,7 +1518,7 @@ class ModLoaderAndVersionMenu(QDialog):
                     raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
                 # Notify the user that the instance was created
-                QMessageBox.information(self, "Instance Created", f"Instance '{instance_name}' has been created successfully.")
+                QMessageBox.information(self, self.tr("Instance Created"), self.tr(f"Instance '{instance_name}' has been created successfully."))
 
                 # Reload the instances list
                 self.load_instances()
@@ -1528,16 +1527,16 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.on_instance_selected(self.instances_list_widget.item(self.instances_list_widget.count() - 1))
 
             except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             except subprocess.CalledProcessError as e:
-                logging.error("Error creating instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to create instance: {e.stderr}")
+                logging.error(self.tr("Error creating instance: %s"), e.stderr)
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to create instance: {e.stderr}"))
         else:
-            QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
+            QMessageBox.warning(self, self.tr("Invalid Input"), self.tr("Please enter a valid instance name."))
 
     def rename_instance(self, old_instance_name, new_instance_name):
         if old_instance_name == "default":
-            QMessageBox.warning(self, "Cannot Rename Instance", "You cannot rename the 'default' instance.")
+            QMessageBox.warning(self, self.tr("Cannot Rename Instance"), self.tr("You cannot rename the 'default' instance."))
             return
 
         try:
@@ -1551,7 +1550,7 @@ class ModLoaderAndVersionMenu(QDialog):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
-            QMessageBox.information(self, "Instance Renamed", f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully.")
+            QMessageBox.information(self, self.tr("Instance Renamed"), self.tr(f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully."))
 
             # Reload the instances list
             self.load_instances()
@@ -1562,18 +1561,18 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.instances_list_widget.setCurrentItem(matching_items[0])
 
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
         except subprocess.CalledProcessError as e:
-            logging.error("Error renaming instance: %s", e.stderr)
-            QMessageBox.critical(self, "Error", f"Failed to rename instance: {e.stderr}")
+            logging.error(self.tr("Error renaming instance: %s"), e.stderr)
+            QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to rename instance: {e.stderr}"))
 
     def delete_instance(self, instance_name):
         if instance_name == "default":
-            QMessageBox.warning(self, "Cannot Delete Instance", "You cannot delete the 'default' instance.")
+            QMessageBox.warning(self, self.tr("Cannot Delete Instance"), self.tr("You cannot delete the 'default' instance."))
             return
 
         confirm_delete = QMessageBox.question(
-            self, "Confirm Deletion", f"Are you sure you want to delete the instance '{instance_name}'?",
+            self, self.tr("Confirm Deletion"), self.tr(f"Are you sure you want to delete the instance '{instance_name}'?"),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
 
@@ -1587,16 +1586,16 @@ class ModLoaderAndVersionMenu(QDialog):
                     raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
                 # Notify the user that the instance was deleted
-                QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
+                QMessageBox.information(self, self.tr("Instance Deleted"), self.tr(f"Instance '{instance_name}' has been deleted successfully."))
 
                 # Reload the instances list
                 self.load_instances()
 
             except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             except subprocess.CalledProcessError as e:
-                logging.error("Error deleting instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
+                logging.error(self.tr("Error deleting instance: %s"), e.stderr)
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to delete instance: {e.stderr}"))
 
     def load_instances(self):
         try:
@@ -1614,9 +1613,9 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.add_instance_buttons(item, instance)
 
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
         except subprocess.CalledProcessError as e:
-            logging.error("Error fetching instances: %s", e.stderr)
+            logging.error(self.tr("Error fetching instances: %s"), e.stderr)
 
     def add_instance_buttons(self, list_item, instance_name):
         widget = QWidget()
@@ -1624,8 +1623,8 @@ class ModLoaderAndVersionMenu(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
 
         label = QLabel(instance_name)
-        rename_button = QPushButton("Rename")
-        delete_button = QPushButton("Delete")
+        rename_button = QPushButton(self.tr("Rename"))
+        delete_button = QPushButton(self.tr("Delete"))
 
         # Stylize the buttons
         button_style = """
@@ -1651,8 +1650,8 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def prompt_rename_instance(self, old_instance_name):
         new_instance_name, ok = QInputDialog.getText(
-            self, "Rename Instance",
-            f"Enter new name for instance '{old_instance_name}':"
+            self, self.tr("Rename Instance"),
+            self.tr(f"Enter new name for instance '{old_instance_name}':")
         )
 
         if ok and new_instance_name:
@@ -1674,14 +1673,14 @@ class ModLoaderAndVersionMenu(QDialog):
                 with open(config_file, 'w') as file:
                     json.dump(config_data, file, indent=4)
 
-                logging.info(f"Config updated: Instance set to {instance_name}")
+                logging.info(self.tr(f"Config updated: Instance set to {instance_name}"))
 
                 self.update_instance_label()
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                logging.error(f"Error reading config.json: {e}")
+                logging.error(self.tr(f"Error reading config.json: {e}"))
         else:
-            logging.warning(f"{config_file} not found. Unable to update instance.")
+            logging.warning(self.tr(f"{config_file} not found. Unable to update instance."))
 
     def update_instance_label(self):
         config_file = 'config.json'
@@ -1691,13 +1690,13 @@ class ModLoaderAndVersionMenu(QDialog):
                 with open(config_file, 'r') as file:
                     config_data = json.load(file)
 
-                current_instance = config_data.get('Instance', 'Not set')
-                self.current_instance_label.setText(f'Current instance: {current_instance}')
+                current_instance = config_data.get('Instance', self.tr('Not set'))
+                self.current_instance_label.setText(self.tr(f'Current instance: {current_instance}'))
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                logging.error(f"Error reading config.json: {e}")
+                logging.error(self.tr(f"Error reading config.json: {e}"))
         else:
-            self.current_instance_label.setText('Current instance: Not set')
+            self.current_instance_label.setText(self.tr('Current instance: Not set'))
 
 
     def setup_install_mod_loader_tab(self, install_mod_tab):
@@ -1709,8 +1708,8 @@ class ModLoaderAndVersionMenu(QDialog):
         layout.addWidget(title_label)
 
         # Create checkboxes for mod loaders
-        self.forge_checkbox = QCheckBox('Forge')
-        self.fabric_checkbox = QCheckBox('Fabric')
+        self.forge_checkbox = QCheckBox(self.tr('Forge'))
+        self.fabric_checkbox = QCheckBox(self.tr('Fabric'))
         layout.addWidget(self.forge_checkbox)
         layout.addWidget(self.fabric_checkbox)
 
@@ -1777,10 +1776,10 @@ class ModLoaderAndVersionMenu(QDialog):
                     if process.returncode != 0:
                         raise subprocess.CalledProcessError(process.returncode, process.args, error)
                 except FileNotFoundError:
-                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                    logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
                     return
                 except subprocess.CalledProcessError as e:
-                    logging.error("Error: %s", e.stderr)
+                    logging.error(self.tr("Error: %s"), e.stderr)
                     return
 
                 # Parse the output and replace '[local]' with a space
@@ -1796,7 +1795,7 @@ class ModLoaderAndVersionMenu(QDialog):
         self.beta_checkbox.clicked.connect(update_versions)
 
         # Create download button
-        self.download_button = QPushButton('Download')
+        self.download_button = QPushButton(self.tr('Download'))
         self.download_button.setEnabled(False)  # Initially disabled
         self.download_button.clicked.connect(lambda: self.download_version(self.version_combo.currentText()))
         layout.addWidget(self.download_button)
@@ -1836,9 +1835,9 @@ class ModLoaderAndVersionMenu(QDialog):
     def on_download_completed(self, success, message):
         self.popup.close()
         if success:
-            QMessageBox.information(self, "Success", message)
+            QMessageBox.information(self, self.tr("Success"), message)
         else:
-            QMessageBox.critical(self, "Error", message)
+            QMessageBox.critical(self, self.tr("Error"), message)
         logging.error(message)
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
@@ -1848,10 +1847,10 @@ class ModLoaderAndVersionMenu(QDialog):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             return
         except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
+            logging.error(self.tr("Error: %s"), e.stderr)
             return
 
         if install_fabric:
@@ -1876,7 +1875,7 @@ class ModLoaderAndVersionMenu(QDialog):
             mod_loader = 'fabric'
 
         if not mod_loader:
-            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            QMessageBox.warning(self, self.tr("Select Mod Loader"), self.tr("Please select at least one mod loader."))
             return
 
         try:
@@ -1884,13 +1883,12 @@ class ModLoaderAndVersionMenu(QDialog):
                 subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
             elif mod_loader == 'fabric':
                 subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+            QMessageBox.information(self, self.tr("Success"), self.tr(f"{mod_loader.capitalize()} installed successfully for version {version}!"))
         except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
+            error_message = self.tr(f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}")
+            QMessageBox.critical(self, self.tr("Error"), error_message)
             logging.error(error_message)
-
-
+            
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     current_date = datetime.now()
