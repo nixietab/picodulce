@@ -10,7 +10,7 @@
     "https://raw.githubusercontent.com/nixietab/picodulce/main/authser.py"
   ],
   "locales": [
-    "https://raw.githubusercontent.com/nixietab/picodulce/main/locales/es.qm"
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/locales/picodulce_es.qm"
   ],
   "versionBleeding": "0.12-174"
 }
