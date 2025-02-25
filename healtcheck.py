@@ -1,5 +1,7 @@
 import os
 import json
+import requests
+
 
 class HealthCheck:
     def __init__(self):
@@ -115,3 +117,36 @@ class HealthCheck:
         # Check if both files exist and print OK message
         if os.path.isfile(dark_theme_file) and os.path.isfile(native_theme_file):
             print("Theme Integrity OK")
+
+    def locales_integrity(self):
+        # Define the locales folder path
+        locales_folder = "locales"
+        version_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
+
+        # Step 1: Ensure the locales folder exists
+        if not os.path.exists(locales_folder):
+            print(f"Creating folder: {locales_folder}")
+            os.makedirs(locales_folder)
+            self.download_locales(version_url)
+        else:
+            print("Locales folder already exists.")
+
+    def download_locales(self, url):
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            locales_links = data.get("locales", [])
+
+            for link in locales_links:
+                locale_name = os.path.basename(link)
+                locale_path = os.path.join("locales", locale_name)
+                locale_response = requests.get(link)
+
+                if locale_response.status_code == 200:
+                    with open(locale_path, "w", encoding="utf-8") as locale_file:
+                        locale_file.write(locale_response.text)
+                    print(f"Downloaded and created file: {locale_path}")
+                else:
+                    print(f"Failed to download {link}")
+        else:
+            print("Failed to fetch version.json")
