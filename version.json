@@ -1,5 +1,5 @@
 {
-  "version": "0.12",
+  "version": "0.13",
   "links": [
     "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/picodulce.py",
@@ -8,6 +8,11 @@
     "https://raw.githubusercontent.com/nixietab/picodulce/main/marroc.py",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/holiday.ico",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/authser.py"
+  ],
+  "locales": [
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/locales/picodulce_es.qm",
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/locales/picodulce_it.qm",
+    "https://raw.githubusercontent.com/nixietab/picodulce/main/locales/picodulce_pt.qm"
   ],
   "versionBleeding": "0.12-174"
 }

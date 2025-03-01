@@ -10,35 +10,47 @@ import requests
 import json
 import os
 import time
+
 from authser import MinecraftAuthenticator
+from healtcheck import HealthCheck
+
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTranslator, QLocale
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class PicomcVersionSelector(QWidget):
+
     def __init__(self):
+        super().__init__()  # Initialize the parent class properly
         self.current_state = "menu"
         self.open_dialogs = []
-        self.check_config_file()
-        self.themes_integrity()
-        themes_folder = "themes"
         
+        
+        # Set up and use the health_check module
+        health_checker = HealthCheck()
+        health_checker.themes_integrity()
+        health_checker.check_config_file()
+        self.config = health_checker.config
+        health_checker.locales_integrity()
+
+        # Load translations before initializing UI
+        self.translators = []
+        self.load_locale("./locales")
+
+        themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
 
-        # Ensure the theme file exists in the themes directory
         theme_file_path = os.path.join(themes_folder, theme_file)
 
         try:
-            # Load and apply the theme from the file
             self.load_theme_from_file(theme_file_path, app)
             print(f"Theme '{theme_file}' loaded successfully.")
         except Exception as e:
             print(f"Error: Could not load theme '{theme_file}'. Falling back to default theme. {e}")
 
-        super().__init__()
         self.init_ui()
 
         if self.config.get("CheckUpdate", False):
@@ -46,7 +58,7 @@ class PicomcVersionSelector(QWidget):
 
         if self.config.get("IsRCPenabled", False):
             discord_rcp_thread = Thread(target=self.start_discord_rcp)
-            discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
+            discord_rcp_thread.daemon = True
             discord_rcp_thread.start()
 
         if self.config.get("IsFirstLaunch", False):
@@ -55,6 +67,46 @@ class PicomcVersionSelector(QWidget):
         self.authenticator = MinecraftAuthenticator(self)
         self.authenticator.auth_finished.connect(self._on_auth_finished)
 
+    def load_locale(self, locale_dir_path):
+        self.config_path = "config.json"
+        if not os.path.exists(locale_dir_path):
+            print(f"Warning: Locale directory {locale_dir_path} does not exist")
+            return
+
+        # Try to load and read config.json
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as config_file:
+                config = json.load(config_file)
+                locale_code = config.get("Locale", "")
+        except FileNotFoundError:
+            print(f"Warning: Config file {self.config_path} not found")
+            return
+        except json.JSONDecodeError:
+            print(f"Error: Invalid JSON in {self.config_path}")
+            return
+        
+        if not locale_code:
+            print("Warning: No locale specified in config.json")
+            return
+
+        # Look for matching locale file
+        locale_pattern = f"*_{locale_code}.qm"  # Pattern like stuff
+        found_matching_locale = False
+
+        for filename in os.listdir(locale_dir_path):
+            if filename.endswith(".qm") and f"_{locale_code}" in filename:
+                locale_file_path = os.path.join(locale_dir_path, filename)
+                translator = QTranslator()
+                if translator.load(locale_file_path):
+                    QApplication.instance().installTranslator(translator)
+                    self.translators.append(translator)
+                    print(f"Loaded locale: {locale_file_path}")
+                    found_matching_locale = True
+                else:
+                    print(f"Failed to load locale: {locale_file_path}")
+
+        if not found_matching_locale:
+            print(f"Warning: No matching locale file found for language code: {locale_code}")
 
     def load_theme_from_file(self, file_path, app):
         self.theme = {}
@@ -114,73 +166,6 @@ class PicomcVersionSelector(QWidget):
             app.setStyleSheet(stylesheet)
         else:
             print("Theme dosn't seem to have a stylesheet")
-
-    def themes_integrity(self):
-        # Define folder and file paths
-        themes_folder = "themes"
-        dark_theme_file = os.path.join(themes_folder, "Dark.json")
-        native_theme_file = os.path.join(themes_folder, "Native.json")
-
-        # Define the default content for Dark.json
-        dark_theme_content = {
-            "manifest": {
-                "name": "Dark",
-                "description": "The default picodulce launcher theme",
-                "author": "Nixietab",
-                "license": "MIT"
-            },
-            "palette": {
-                "Window": "#353535",
-                "WindowText": "#ffffff",
-                "Base": "#191919",
-                "AlternateBase": "#353535",
-                "ToolTipBase": "#ffffff",
-                "ToolTipText": "#ffffff",
-                "Text": "#ffffff",
-                "Button": "#353535",
-                "ButtonText": "#ffffff",
-                "BrightText": "#ff0000",
-                "Link": "#2a82da",
-                "Highlight": "#4bb679",
-                "HighlightedText": "#ffffff"
-            },
-            "background_image_base64": ""
-        }
-
-        # Define the default content for Native.json
-        native_theme_content = {
-            "manifest": {
-                "name": "Native",
-                "description": "The native looks of your OS",
-                "author": "Your Qt Style",
-                "license": "Any"
-            },
-            "palette": {}
-        }
-
-        # Step 1: Ensure the themes folder exists
-        if not os.path.exists(themes_folder):
-            print(f"Creating folder: {themes_folder}")
-            os.makedirs(themes_folder)
-
-        # Step 2: Ensure Dark.json exists
-        if not os.path.isfile(dark_theme_file):
-            print(f"Creating file: {dark_theme_file}")
-            with open(dark_theme_file, "w", encoding="utf-8") as file:
-                json.dump(dark_theme_content, file, indent=2)
-            print("Dark.json has been created successfully.")
-
-        # Step 3: Ensure Native.json exists
-        if not os.path.isfile(native_theme_file):
-            print(f"Creating file: {native_theme_file}")
-            with open(native_theme_file, "w", encoding="utf-8") as file:
-                json.dump(native_theme_content, file, indent=2)
-            print("Native.json has been created successfully.")
-
-        # Check if both files exist and print OK message
-        if os.path.isfile(dark_theme_file) and os.path.isfile(native_theme_file):
-            print("Theme Integrity OK")
-
 
     def FirstLaunch(self):
         try:
@@ -277,7 +262,7 @@ class PicomcVersionSelector(QWidget):
         title_label.setFont(QFont("Arial", 24, QFont.Bold))
 
         # Create installed versions section
-        installed_versions_label = QLabel('Installed Versions:')
+        installed_versions_label = QLabel(self.tr('Installed Versions:'))
         installed_versions_label.setFont(QFont("Arial", 14))
         self.installed_version_combo = QComboBox()
         self.installed_version_combo.setMinimumWidth(200)
@@ -287,32 +272,32 @@ class PicomcVersionSelector(QWidget):
         buttons_layout = QVBoxLayout()
 
         # Create play button for installed versions
-        self.play_button = QPushButton('Play')
+        self.play_button = QPushButton(self.tr('Play'))
         self.play_button.clicked.connect(self.play_instance)
         highlight_color = self.palette().color(QPalette.Highlight)
         self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
         buttons_layout.addWidget(self.play_button)
 
         # Version Manager Button
-        self.open_menu_button = QPushButton('Version Manager')
+        self.open_menu_button = QPushButton(self.tr('Version Manager'))
         self.open_menu_button.clicked.connect(self.open_mod_loader_and_version_menu)
         buttons_layout.addWidget(self.open_menu_button)
 
         # Create button to manage accounts
-        self.manage_accounts_button = QPushButton('Manage Accounts')
+        self.manage_accounts_button = QPushButton(self.tr('Manage Accounts'))
         self.manage_accounts_button.clicked.connect(self.manage_accounts)
         buttons_layout.addWidget(self.manage_accounts_button)
 
         # Create a button for the marroc mod loader
-        self.open_marroc_button = QPushButton('Marroc Mod Manager')
+        self.open_marroc_button = QPushButton(self.tr('Marroc Mod Manager'))
         self.open_marroc_button.clicked.connect(self.open_marroc_script)
         buttons_layout.addWidget(self.open_marroc_button)
 
         # Create grid layout for Settings and About buttons
         grid_layout = QGridLayout()
-        self.settings_button = QPushButton('Settings')
+        self.settings_button = QPushButton(self.tr('Settings'))
         self.settings_button.clicked.connect(self.open_settings_dialog)
-        self.about_button = QPushButton('About')
+        self.about_button = QPushButton(self.tr('About'))
         self.about_button.clicked.connect(self.show_about_dialog)
         
         grid_layout.addWidget(self.settings_button, 0, 0)
@@ -350,53 +335,9 @@ class PicomcVersionSelector(QWidget):
         else:
             super().keyPressEvent(event)
 
-    def check_config_file(self):
-        config_path = "config.json"
-        default_config = {
-            "IsRCPenabled": False,
-            "CheckUpdate": False,
-            "IsBleeding": False,
-            "LastPlayed": "",
-            "IsFirstLaunch": True,
-            "Instance": "default",
-            "Theme": "Dark.json",
-            "ThemeBackground": True,
-            "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"
-        }
-
-        # Step 1: Check if the file exists; if not, create it with default values
-        if not os.path.exists(config_path):
-            with open(config_path, "w") as config_file:
-                json.dump(default_config, config_file, indent=4)
-            self.config = default_config
-            return
-
-        # Step 2: Try loading the config file, handle invalid JSON
-        try:
-            with open(config_path, "r") as config_file:
-                self.config = json.load(config_file)
-        except (json.JSONDecodeError, ValueError):
-            # File is corrupted, overwrite it with default configuration
-            with open(config_path, "w") as config_file:
-                json.dump(default_config, config_file, indent=4)
-            self.config = default_config
-            return
-
-        # Step 3: Check for missing keys and add defaults if necessary
-        updated = False
-        for key, value in default_config.items():
-            if key not in self.config:  # Field is missing
-                self.config[key] = value
-                updated = True
-
-        # Step 4: Save the repaired config back to the file
-        if updated:
-            with open(config_path, "w") as config_file:
-                json.dump(self.config, config_file, indent=4)
-
     def open_settings_dialog(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle('Settings')
+        dialog.setWindowTitle(self.tr('Settings'))
 
         # Make the window resizable
         dialog.setMinimumSize(400, 300)
@@ -408,17 +349,17 @@ class PicomcVersionSelector(QWidget):
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
-        title_label = QLabel('Settings')
+        title_label = QLabel(self.tr('Settings'))
         title_label.setFont(QFont("Arial", 14))
 
         # Create checkboxes for settings tab
-        discord_rcp_checkbox = QCheckBox('Discord Rich Presence')
+        discord_rcp_checkbox = QCheckBox(self.tr('Discord Rich Presence'))
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
 
-        check_updates_checkbox = QCheckBox('Check Updates on Start')
+        check_updates_checkbox = QCheckBox(self.tr('Check Updates on Start'))
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
-        bleeding_edge_checkbox = QCheckBox('Bleeding Edge')
+        bleeding_edge_checkbox = QCheckBox(self.tr('Bleeding Edge'))
         bleeding_edge_checkbox.setChecked(self.config.get("IsBleeding", False))
         bleeding_edge_checkbox.stateChanged.connect(lambda: self.show_bleeding_edge_popup(bleeding_edge_checkbox))
 
@@ -427,14 +368,37 @@ class PicomcVersionSelector(QWidget):
         settings_layout.addWidget(check_updates_checkbox)
         settings_layout.addWidget(bleeding_edge_checkbox)
 
+        # Add language dropdown
+        language_label = QLabel(self.tr('Language'))
+        language_dropdown = QComboBox()
+        languages = {
+            "English": "en",
+            "Español": "es",
+            "Italiano": "it"
+            # Here will be more
+        }
+        
+        # Populate dropdown with language options
+        for lang_name, lang_code in languages.items():
+            language_dropdown.addItem(lang_name, lang_code)
+        
+        # Set the current language in the dropdown
+        current_language_code = self.config.get('Locale', 'en')
+        current_language_index = language_dropdown.findData(current_language_code)
+        if current_language_index != -1:
+            language_dropdown.setCurrentIndex(current_language_index)
+
+        settings_layout.addWidget(language_label)
+        settings_layout.addWidget(language_dropdown)
+
         # Add buttons in the settings tab
-        update_button = QPushButton('Check for updates')
+        update_button = QPushButton(self.tr('Check for updates'))
         update_button.clicked.connect(self.check_for_update)
 
-        open_game_directory_button = QPushButton('Open game directory')
+        open_game_directory_button = QPushButton(self.tr('Open game directory'))
         open_game_directory_button.clicked.connect(self.open_game_directory)
 
-        stats_button = QPushButton('Stats for Nerds')
+        stats_button = QPushButton(self.tr('Stats for Nerds'))
         stats_button.clicked.connect(self.show_system_info)
 
         settings_layout.addWidget(update_button)
@@ -448,15 +412,15 @@ class PicomcVersionSelector(QWidget):
         customization_layout = QVBoxLayout()
 
         # Create theme background checkbox for customization tab
-        theme_background_checkbox = QCheckBox('Theme Background')
+        theme_background_checkbox = QCheckBox(self.tr('Theme Background'))
         theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
 
         # Label to show currently selected theme
         theme_filename = self.config.get('Theme', 'Dark.json')
-        current_theme_label = QLabel(f"Current Theme: {theme_filename}")
+        current_theme_label = QLabel(self.tr(f"Current Theme: {theme_filename}"))
 
         # QListWidget to display available themes
-        json_files_label = QLabel('Installed Themes:')
+        json_files_label = QLabel(self.tr('Installed Themes:'))
         self.json_files_list_widget = QListWidget()
 
         # Track selected theme
@@ -480,7 +444,7 @@ class PicomcVersionSelector(QWidget):
         customization_layout.addWidget(self.json_files_list_widget)
 
         # Button to download themes
-        download_themes_button = QPushButton("Download More Themes")
+        download_themes_button = QPushButton(self.tr("Download More Themes"))
         download_themes_button.clicked.connect(self.download_themes_window)
 
         customization_layout.addWidget(download_themes_button)
@@ -488,18 +452,19 @@ class PicomcVersionSelector(QWidget):
         customization_tab.setLayout(customization_layout)
 
         # Add the tabs to the TabWidget
-        tab_widget.addTab(settings_tab, "Settings")
-        tab_widget.addTab(customization_tab, "Customization")
+        tab_widget.addTab(settings_tab, self.tr("Settings"))
+        tab_widget.addTab(customization_tab, self.tr("Customization"))
 
         # Save button
-        save_button = QPushButton('Save')
+        save_button = QPushButton(self.tr('Save'))
         save_button.clicked.connect(
             lambda: self.save_settings(
                 discord_rcp_checkbox.isChecked(),
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
                 self.selected_theme,  # Pass the selected theme here
-                bleeding_edge_checkbox.isChecked()  # Pass the bleeding edge setting here
+                bleeding_edge_checkbox.isChecked(),  # Pass the bleeding edge setting here
+                language_dropdown.currentData()  # Pass the selected language code here
             )
         )
 
@@ -571,13 +536,13 @@ class PicomcVersionSelector(QWidget):
         selected_item = json_files_list_widget.currentItem()
         if selected_item:
             self.selected_theme = selected_item.data(Qt.UserRole)
-            current_theme_label.setText(f"Current Theme: {self.selected_theme}")
+            current_theme_label.setText(self.tr(f"Current Theme: {self.selected_theme}"))
             
      ## REPOSITORY BLOCK BEGGINS
 
     def download_themes_window(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("Themes Repository")
+        dialog.setWindowTitle(self.tr("Themes Repository"))
         dialog.setGeometry(100, 100, 800, 600)
 
         main_layout = QHBoxLayout(dialog)
@@ -599,7 +564,7 @@ class PicomcVersionSelector(QWidget):
         self.image_label.setStyleSheet("padding: 10px;")
         right_layout.addWidget(self.image_label)
 
-        download_button = QPushButton("Download Theme", dialog)
+        download_button = QPushButton(self.tr("Download Theme"), dialog)
         download_button.clicked.connect(self.theme_download)
         right_layout.addWidget(download_button)
 
@@ -611,7 +576,6 @@ class PicomcVersionSelector(QWidget):
         dialog.setLayout(main_layout)
 
         dialog.finished.connect(lambda: self.update_themes_list())
-
 
         self.load_themes()
         dialog.exec_()
@@ -626,18 +590,18 @@ class PicomcVersionSelector(QWidget):
                 config = json.load(config_file)
             url = config.get("ThemeRepository")
             if not url:
-                raise ValueError("ThemeRepository is not defined in config.json")
+                raise ValueError(self.tr("ThemeRepository is not defined in config.json"))
             response = requests.get(url)
             response.raise_for_status()
             return response.json()
         except (FileNotFoundError, json.JSONDecodeError) as config_error:
-            self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
+            self.show_error_popup(self.tr("Error reading configuration"), self.tr(f"An error occurred while reading config.json: {config_error}"))
             return {}
         except requests.exceptions.RequestException as fetch_error:
-            self.show_error_popup("Error fetching themes", f"An error occurred while fetching themes: {fetch_error}")
+            self.show_error_popup(self.tr("Error fetching themes"), self.tr(f"An error occurred while fetching themes: {fetch_error}"))
             return {}
         except ValueError as value_error:
-            self.show_error_popup("Configuration Error", str(value_error))
+            self.show_error_popup(self.tr("Configuration Error"), self.tr(str(value_error)))
             return {}
 
     def download_theme_json(self, theme_url, theme_name):
@@ -649,15 +613,15 @@ class PicomcVersionSelector(QWidget):
             theme_filename = os.path.join('themes', f'{theme_name}.json')
             with open(theme_filename, 'wb') as f:
                 f.write(response.content)
-            print(f"Downloaded {theme_name} theme to {theme_filename}")
+            print(self.tr(f"Downloaded {theme_name} theme to {theme_filename}"))
         except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error downloading theme", f"An error occurred while downloading {theme_name}: {e}")
+            self.show_error_popup(self.tr("Error downloading theme"), self.tr(f"An error occurred while downloading {theme_name}: {e}"))
 
     def show_error_popup(self, title, message):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
-        msg.setWindowTitle(title)
-        msg.setText(message)
+        msg.setWindowTitle(self.tr(title))
+        msg.setText(self.tr(message))
         msg.exec_()
 
     def is_theme_installed(self, theme_name):
@@ -671,7 +635,7 @@ class PicomcVersionSelector(QWidget):
         for theme in themes:
             theme_display_name = f"{theme['name']} by {theme['author']}"
             if self.is_theme_installed(theme['name']):
-                theme_display_name += " [I]"
+                theme_display_name += self.tr(" [I]")
                 installed_themes.append(theme_display_name)
             else:
                 uninstalled_themes.append(theme_display_name)
@@ -691,11 +655,11 @@ class PicomcVersionSelector(QWidget):
             theme = self.find_theme_by_name(theme_name)
             if theme:
                 self.details_label.setText(
-                    f"<b>Name:</b> {theme['name']}<br>"
-                    f"<b>Description:</b> {theme['description']}<br>"
-                    f"<b>Author:</b> {theme['author']}<br>"
-                    f"<b>License:</b> {theme['license']}<br>"
-                    f"<b>Link:</b> <a href='{theme['link']}'>{theme['link']}</a><br>"
+                    self.tr(f"<b>Name:</b> {theme['name']}<br>"
+                            f"<b>Description:</b> {theme['description']}<br>"
+                            f"<b>Author:</b> {theme['author']}<br>"
+                            f"<b>License:</b> {theme['license']}<br>"
+                            f"<b>Link:</b> <a href='{theme['link']}'>{theme['link']}</a><br>")
                 )
                 self.details_label.setTextFormat(Qt.RichText)
                 self.details_label.setOpenExternalLinks(True)
@@ -715,7 +679,7 @@ class PicomcVersionSelector(QWidget):
             response.raise_for_status()
             return response.content
         except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error fetching image", f"An error occurred while fetching the image: {e}")
+            self.show_error_popup(self.tr("Error fetching image"), self.tr(f"An error occurred while fetching the image: {e}"))
             return None
 
     def find_theme_by_name(self, theme_name):
@@ -735,18 +699,19 @@ class PicomcVersionSelector(QWidget):
                 theme_url = theme["link"]
                 self.download_theme_json(theme_url, theme_name)
                 self.load_themes()
-
+            
         ## REPOSITORY BLOCK ENDS
 
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding):
+    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding, selected_language):
         config_path = "config.json"
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
             "ThemeBackground": theme_background,
             "Theme": selected_theme,
-            "IsBleeding": is_bleeding
+            "IsBleeding": is_bleeding,
+            "Locale": selected_language
         }
 
         # Update config values
@@ -762,20 +727,6 @@ class PicomcVersionSelector(QWidget):
             "Settings saved successfully!\n\nTo apply the changes, please restart the launcher."
         )
         self.__init__()
-
-    def get_palette(self, palette_type):
-        """Retrieve the corresponding palette based on the palette type."""
-        palettes = {
-            "Dark": self.create_dark_palette,
-            "Obsidian": self.create_obsidian_palette,
-            "Redstone": self.create_redstone_palette,
-            "Alpha": self.create_alpha_palette,
-            "Strawberry": self.create_strawberry_palette,
-            "Native": self.create_native_palette,
-            "Christmas": self.create_christmas_palette,
-        }
-        # Default to dark palette if the type is not specified or invalid
-        return palettes.get(palette_type, self.create_dark_palette)()
 
     def get_system_info(self):
         # Get system information
@@ -988,11 +939,11 @@ class PicomcVersionSelector(QWidget):
         # Main account management dialog
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Manage Accounts')
+        dialog.setWindowTitle(self.tr('Manage Accounts'))
         dialog.setFixedSize(400, 250)
 
         # Title
-        title_label = QLabel('Manage Accounts')
+        title_label = QLabel(self.tr('Manage Accounts'))
         title_label.setFont(QFont("Arial", 14))
         title_label.setAlignment(Qt.AlignCenter)  # Center the text
         # Dropdown for selecting accounts
@@ -1000,17 +951,17 @@ class PicomcVersionSelector(QWidget):
         self.populate_accounts(account_combo)
 
         # Buttons
-        create_account_button = QPushButton('Create Account')
+        create_account_button = QPushButton(self.tr('Create Account'))
         create_account_button.clicked.connect(self.open_create_account_dialog)
 
-        authenticate_button = QPushButton('Authenticate Account')
+        authenticate_button = QPushButton(self.tr('Authenticate Account'))
         authenticate_button.clicked.connect(lambda: self.authenticate_account(dialog, account_combo.currentText()))
 
-        remove_account_button = QPushButton('Remove Account')
+        remove_account_button = QPushButton(self.tr('Remove Account'))
         remove_account_button.clicked.connect(lambda: self.remove_account(dialog, account_combo.currentText()))
 
         # New button to set the account idk
-        set_default_button = QPushButton('Select')
+        set_default_button = QPushButton(self.tr('Select'))
         set_default_button.setFixedWidth(100)  # Set button width to a quarter
         set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
 
@@ -1038,15 +989,15 @@ class PicomcVersionSelector(QWidget):
         # Dialog for creating a new account
         dialog = QDialog(self)
         self.open_dialogs.append(dialog)
-        dialog.setWindowTitle('Create Account')
+        dialog.setWindowTitle(self.tr('Create Account'))
         dialog.setFixedSize(300, 150)
 
         username_input = QLineEdit()
-        username_input.setPlaceholderText('Enter Username')
+        username_input.setPlaceholderText(self.tr('Enter Username'))
 
-        microsoft_checkbox = QCheckBox('Microsoft Account')
+        microsoft_checkbox = QCheckBox(self.tr('Microsoft Account'))
 
-        create_button = QPushButton('Create')
+        create_button = QPushButton(self.tr('Create'))
         create_button.clicked.connect(lambda: self.create_account(dialog, username_input.text(), microsoft_checkbox.isChecked()))
 
         layout = QVBoxLayout()
@@ -1063,11 +1014,12 @@ class PicomcVersionSelector(QWidget):
         username = username.strip()
 
         if not username:
-            QMessageBox.warning(dialog, "Warning", "Username cannot be blank.")
+            QMessageBox.warning(dialog, self.tr("Warning"), self.tr("Username cannot be blank."))
             return
 
         if not self.is_valid_username(username):
-            QMessageBox.warning(dialog, "Warning", "Invalid username. Usernames must be 3-16 characters long and can only contain letters, numbers, and underscores.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Invalid username. Usernames must be 3-16 characters long and can only contain letters, numbers, and underscores."))
             return
 
         try:
@@ -1076,13 +1028,14 @@ class PicomcVersionSelector(QWidget):
                 command.append('--ms')
 
             subprocess.run(command, check=True)
-            QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
+            QMessageBox.information(dialog, self.tr("Success"), 
+                self.tr("Account '{username}' created successfully!").format(username=username))
             self.populate_accounts_for_all_dialogs()
             dialog.accept()
         except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
+            error_message = self.tr("Error creating account: {error}").format(error=e.stderr.decode())
             logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
+            QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
     def is_valid_username(self, username):
         # Validate the username according to Minecraft's rules
@@ -1094,7 +1047,8 @@ class PicomcVersionSelector(QWidget):
         # Clean up the account name
         account_name = account_name.strip().lstrip(" * ")
         if not account_name:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to authenticate.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Please select an account to authenticate."))
             return
 
         try:
@@ -1107,15 +1061,18 @@ class PicomcVersionSelector(QWidget):
             self.authenticator.authenticate(account_name)
             
         except Exception as e:
-            error_message = f"Error authenticating account '{account_name}': {str(e)}"
+            error_message = self.tr("Error authenticating account '{account}': {error}").format(
+                account=account_name, error=str(e))
             logging.error(error_message)
-            QMessageBox.critical(dialog, "Error", error_message)
+            QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
     def _on_auth_finished(self, success):
         if success:
-            QMessageBox.information(self, "Success", "Account authenticated successfully!")
+            QMessageBox.information(self, self.tr("Success"), 
+                self.tr("Account authenticated successfully!"))
         else:
-            QMessageBox.critical(self, "Error", "Failed to authenticate account")
+            QMessageBox.critical(self, self.tr("Error"), 
+                self.tr("Failed to authenticate account"))
 
         # Cleanup
         if self.authenticator:
@@ -1126,20 +1083,23 @@ class PicomcVersionSelector(QWidget):
         # Remove a selected account
         username = username.strip().lstrip(" * ")
         if not username:
-            QMessageBox.warning(dialog, "Warning", "Please select an account to remove.")
+            QMessageBox.warning(dialog, self.tr("Warning"), 
+                self.tr("Please select an account to remove."))
             return
 
-        confirm_message = f"Are you sure you want to remove the account '{username}'?\nThis action cannot be undone."
-        confirm_dialog = QMessageBox.question(dialog, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        confirm_message = self.tr("Are you sure you want to remove the account '{username}'?\nThis action cannot be undone.").format(username=username)
+        confirm_dialog = QMessageBox.question(dialog, self.tr("Confirm Removal"), 
+            confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm_dialog == QMessageBox.Yes:
             try:
                 subprocess.run(['picomc', 'account', 'remove', username], check=True)
-                QMessageBox.information(dialog, "Success", f"Account '{username}' removed successfully!")
+                QMessageBox.information(dialog, self.tr("Success"), 
+                    self.tr("Account '{username}' removed successfully!").format(username=username))
                 self.populate_accounts_for_all_dialogs()
             except subprocess.CalledProcessError as e:
-                error_message = f"Error removing account: {e.stderr.decode()}"
+                error_message = self.tr("Error removing account: {error}").format(error=e.stderr.decode())
                 logging.error(error_message)
-                QMessageBox.critical(dialog, "Error", error_message)
+                QMessageBox.critical(dialog, self.tr("Error"), error_message)
 
 
     def populate_accounts(self, account_combo):
@@ -1224,15 +1184,16 @@ class PicomcVersionSelector(QWidget):
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
-        about_message = (
-            f"PicoDulce Launcher (v{version_number})\n\n"
+        about_message = self.tr(
+            "PicoDulce Launcher (v{0})\n\n"
             "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
             "Credits:\n"
             "Nixietab: Code and UI design\n"
             "Wabaano: Graphic design\n"
             "Olinad: Christmas!!!!"
-        )
-        QMessageBox.about(self, "About", about_message)
+        ).format(version_number)
+
+        QMessageBox.about(self, self.tr("About"), about_message)
 
     def check_for_update_start(self):
         try:
@@ -1260,7 +1221,7 @@ class PicomcVersionSelector(QWidget):
                     else:
                         remote_version_to_check = remote_version
                         local_version_to_check = local_version
-                    
+
                     if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
                             update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
@@ -1305,7 +1266,7 @@ class PicomcVersionSelector(QWidget):
                     else:
                         remote_version_to_check = remote_version
                         local_version_to_check = local_version
-                    
+
                     if remote_version_to_check and (remote_version_to_check != local_version_to_check):
                         if is_bleeding:
                             update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
@@ -1341,32 +1302,75 @@ class PicomcVersionSelector(QWidget):
     def download_update(self, version_info):
         try:
             update_folder = "update"
+            locales_folder = "locales"
+
             if not os.path.exists(update_folder):
                 os.makedirs(update_folder)
+
+            # Download regular update files
             for link in version_info.get("links", []):
-                filename = os.path.basename(link)
-                response = requests.get(link, stream=True)
-                if response.status_code == 200:
-                    with open(os.path.join(update_folder, filename), 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=1024):
-                            f.write(chunk)
-                else:
-                    QMessageBox.critical(self, "Error", f"Failed to download update file: {filename}")
-            
-            # Move downloaded files one directory up
-            for file in os.listdir(update_folder):
-                src = os.path.join(update_folder, file)
-                dst = os.path.join(os.path.dirname(update_folder), file)
-                shutil.move(src, dst)
-            
-            # Remove the update folder
+                self.download_file(link, update_folder)
+
+            # Download locale files
+            for link in version_info.get("locales", []):
+                self.download_file(link, locales_folder)
+
+            # Move downloaded files while preserving directory structure
+            def copy_tree_up(src, dst_parent):
+                for item in os.listdir(src):
+                    s = os.path.join(src, item)
+                    d = os.path.join(dst_parent, item)
+                    if os.path.isdir(s):
+                        if not os.path.exists(d):
+                            os.makedirs(d)
+                        copy_tree_up(s, dst_parent)
+                    else:
+                        if os.path.exists(d):
+                            os.remove(d)  # Remove existing file if it exists
+                        shutil.move(s, d)
+
+            # Move files one directory up while preserving structure
+            copy_tree_up(update_folder, os.path.dirname(update_folder))
+            copy_tree_up(locales_folder, os.path.dirname(locales_folder))
+
+            # Remove the update folders
             shutil.rmtree(update_folder)
-            
+            shutil.rmtree(locales_folder)
+
             QMessageBox.information(self, "Update", "Updates downloaded successfully.")
         except Exception as e:
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
 
+    def download_file(self, link, folder):
+        try:
+            # Get the relative path from the URL
+            parsed_url = urllib.parse.urlparse(link)
+            relative_path = parsed_url.path.lstrip('/')
+            # Remove any repository-specific parts if present
+            parts = relative_path.split('/', 3)
+            if len(parts) > 3:  # If URL contains owner/repo/branch/path format
+                relative_path = parts[3]
+            
+            # Create the full path in the specified folder
+            full_path = os.path.join(folder, relative_path)
+            # Create the directory structure
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+            # Download the file
+            response = requests.get(link, stream=True)
+            if response.status_code == 200:
+                with open(full_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        f.write(chunk)
+                logging.info(f"Successfully downloaded: {relative_path}")
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to download update file: {relative_path}")
+                raise Exception(f"Failed to download {relative_path}")
+        except Exception as e:
+            logging.error("Error downloading file: %s", str(e))
+            QMessageBox.critical(self, "Error", f"Failed to download file: {link}")
+            
     def start_discord_rcp(self):
         from pypresence import Presence
         import time
@@ -1431,15 +1435,15 @@ class DownloadThread(QThread):
     def run(self):
         try:
             subprocess.run(['picomc', 'version', 'prepare', self.version], check=True)
-            self.completed.emit(True, f"Version {self.version} prepared successfully!")
+            self.completed.emit(True, self.tr(f"Version {self.version} prepared successfully!"))
         except subprocess.CalledProcessError as e:
-            error_message = f"Error preparing {self.version}: {e.stderr.decode()}"
+            error_message = self.tr(f"Error preparing {self.version}: {e.stderr.decode()}")
             self.completed.emit(False, error_message)
 
 class ModLoaderAndVersionMenu(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mod Loader and Version Menu")
+        self.setWindowTitle(self.tr("Mod Loader and Version Menu"))
         self.setGeometry(100, 100, 400, 300)
 
         main_layout = QVBoxLayout(self)
@@ -1452,9 +1456,9 @@ class ModLoaderAndVersionMenu(QDialog):
         download_version_tab = QWidget()
         instances_tab = QWidget()  # New tab for instances
 
-        tab_widget.addTab(download_version_tab, "Download Version")
-        tab_widget.addTab(install_mod_tab, "Install Mod Loader")
-        tab_widget.addTab(instances_tab, "Instances")  # Add the new tab
+        tab_widget.addTab(download_version_tab, self.tr("Download Version"))
+        tab_widget.addTab(install_mod_tab, self.tr("Install Mod Loader"))
+        tab_widget.addTab(instances_tab, self.tr("Instances"))  # Add the new tab
 
         # Add content to "Install Mod Loader" tab
         self.setup_install_mod_loader_tab(install_mod_tab)
@@ -1470,12 +1474,12 @@ class ModLoaderAndVersionMenu(QDialog):
         layout = QVBoxLayout(instances_tab)
 
         # Create title label
-        title_label = QLabel('Manage Minecraft Instances')
+        title_label = QLabel(self.tr('Manage Minecraft Instances'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
         # Create a label to display the current instance
-        self.current_instance_label = QLabel('Loading...')  # Placeholder text
+        self.current_instance_label = QLabel(self.tr('Loading...'))  # Placeholder text
         layout.addWidget(self.current_instance_label)
 
         # Create a QListWidget to display the instances
@@ -1484,10 +1488,10 @@ class ModLoaderAndVersionMenu(QDialog):
 
         # Create input field and button to create a new instance
         self.create_instance_input = QLineEdit()
-        self.create_instance_input.setPlaceholderText("Enter instance name")
+        self.create_instance_input.setPlaceholderText(self.tr("Enter instance name"))
         layout.addWidget(self.create_instance_input)
 
-        create_instance_button = QPushButton("Create Instance")
+        create_instance_button = QPushButton(self.tr("Create Instance"))
         create_instance_button.clicked.connect(self.create_instance)
         layout.addWidget(create_instance_button)
 
@@ -1513,7 +1517,7 @@ class ModLoaderAndVersionMenu(QDialog):
                     raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
                 # Notify the user that the instance was created
-                QMessageBox.information(self, "Instance Created", f"Instance '{instance_name}' has been created successfully.")
+                QMessageBox.information(self, self.tr("Instance Created"), self.tr(f"Instance '{instance_name}' has been created successfully."))
 
                 # Reload the instances list
                 self.load_instances()
@@ -1522,16 +1526,16 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.on_instance_selected(self.instances_list_widget.item(self.instances_list_widget.count() - 1))
 
             except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             except subprocess.CalledProcessError as e:
-                logging.error("Error creating instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to create instance: {e.stderr}")
+                logging.error(self.tr("Error creating instance: %s"), e.stderr)
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to create instance: {e.stderr}"))
         else:
-            QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
+            QMessageBox.warning(self, self.tr("Invalid Input"), self.tr("Please enter a valid instance name."))
 
     def rename_instance(self, old_instance_name, new_instance_name):
         if old_instance_name == "default":
-            QMessageBox.warning(self, "Cannot Rename Instance", "You cannot rename the 'default' instance.")
+            QMessageBox.warning(self, self.tr("Cannot Rename Instance"), self.tr("You cannot rename the 'default' instance."))
             return
 
         try:
@@ -1545,7 +1549,7 @@ class ModLoaderAndVersionMenu(QDialog):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
-            QMessageBox.information(self, "Instance Renamed", f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully.")
+            QMessageBox.information(self, self.tr("Instance Renamed"), self.tr(f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully."))
 
             # Reload the instances list
             self.load_instances()
@@ -1556,18 +1560,18 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.instances_list_widget.setCurrentItem(matching_items[0])
 
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
         except subprocess.CalledProcessError as e:
-            logging.error("Error renaming instance: %s", e.stderr)
-            QMessageBox.critical(self, "Error", f"Failed to rename instance: {e.stderr}")
+            logging.error(self.tr("Error renaming instance: %s"), e.stderr)
+            QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to rename instance: {e.stderr}"))
 
     def delete_instance(self, instance_name):
         if instance_name == "default":
-            QMessageBox.warning(self, "Cannot Delete Instance", "You cannot delete the 'default' instance.")
+            QMessageBox.warning(self, self.tr("Cannot Delete Instance"), self.tr("You cannot delete the 'default' instance."))
             return
 
         confirm_delete = QMessageBox.question(
-            self, "Confirm Deletion", f"Are you sure you want to delete the instance '{instance_name}'?",
+            self, self.tr("Confirm Deletion"), self.tr(f"Are you sure you want to delete the instance '{instance_name}'?"),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
 
@@ -1581,16 +1585,16 @@ class ModLoaderAndVersionMenu(QDialog):
                     raise subprocess.CalledProcessError(process.returncode, process.args, error)
 
                 # Notify the user that the instance was deleted
-                QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
+                QMessageBox.information(self, self.tr("Instance Deleted"), self.tr(f"Instance '{instance_name}' has been deleted successfully."))
 
                 # Reload the instances list
                 self.load_instances()
 
             except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             except subprocess.CalledProcessError as e:
-                logging.error("Error deleting instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
+                logging.error(self.tr("Error deleting instance: %s"), e.stderr)
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"Failed to delete instance: {e.stderr}"))
 
     def load_instances(self):
         try:
@@ -1608,9 +1612,9 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.add_instance_buttons(item, instance)
 
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
         except subprocess.CalledProcessError as e:
-            logging.error("Error fetching instances: %s", e.stderr)
+            logging.error(self.tr("Error fetching instances: %s"), e.stderr)
 
     def add_instance_buttons(self, list_item, instance_name):
         widget = QWidget()
@@ -1618,8 +1622,8 @@ class ModLoaderAndVersionMenu(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
 
         label = QLabel(instance_name)
-        rename_button = QPushButton("Rename")
-        delete_button = QPushButton("Delete")
+        rename_button = QPushButton(self.tr("Rename"))
+        delete_button = QPushButton(self.tr("Delete"))
 
         # Stylize the buttons
         button_style = """
@@ -1645,8 +1649,8 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def prompt_rename_instance(self, old_instance_name):
         new_instance_name, ok = QInputDialog.getText(
-            self, "Rename Instance",
-            f"Enter new name for instance '{old_instance_name}':"
+            self, self.tr("Rename Instance"),
+            self.tr(f"Enter new name for instance '{old_instance_name}':")
         )
 
         if ok and new_instance_name:
@@ -1668,14 +1672,14 @@ class ModLoaderAndVersionMenu(QDialog):
                 with open(config_file, 'w') as file:
                     json.dump(config_data, file, indent=4)
 
-                logging.info(f"Config updated: Instance set to {instance_name}")
+                logging.info(self.tr(f"Config updated: Instance set to {instance_name}"))
 
                 self.update_instance_label()
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                logging.error(f"Error reading config.json: {e}")
+                logging.error(self.tr(f"Error reading config.json: {e}"))
         else:
-            logging.warning(f"{config_file} not found. Unable to update instance.")
+            logging.warning(self.tr(f"{config_file} not found. Unable to update instance."))
 
     def update_instance_label(self):
         config_file = 'config.json'
@@ -1685,26 +1689,26 @@ class ModLoaderAndVersionMenu(QDialog):
                 with open(config_file, 'r') as file:
                     config_data = json.load(file)
 
-                current_instance = config_data.get('Instance', 'Not set')
-                self.current_instance_label.setText(f'Current instance: {current_instance}')
+                current_instance = config_data.get('Instance', self.tr('Not set'))
+                self.current_instance_label.setText(self.tr(f'Current instance: {current_instance}'))
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                logging.error(f"Error reading config.json: {e}")
+                logging.error(self.tr(f"Error reading config.json: {e}"))
         else:
-            self.current_instance_label.setText('Current instance: Not set')
+            self.current_instance_label.setText(self.tr('Current instance: Not set'))
 
 
     def setup_install_mod_loader_tab(self, install_mod_tab):
         layout = QVBoxLayout(install_mod_tab)
 
         # Create title label
-        title_label = QLabel('Mod Loader Installer')
+        title_label = QLabel(self.tr('Mod Loader Installer'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
         # Create checkboxes for mod loaders
-        self.forge_checkbox = QCheckBox('Forge')
-        self.fabric_checkbox = QCheckBox('Fabric')
+        self.forge_checkbox = QCheckBox(self.tr('Forge'))
+        self.fabric_checkbox = QCheckBox(self.tr('Fabric'))
         layout.addWidget(self.forge_checkbox)
         layout.addWidget(self.fabric_checkbox)
 
@@ -1723,7 +1727,7 @@ class ModLoaderAndVersionMenu(QDialog):
         self.fabric_checkbox.clicked.connect(update_versions)
 
         # Create install button
-        install_button = QPushButton('Install')
+        install_button = QPushButton(self.tr('Install'))
         install_button.clicked.connect(lambda: self.install_mod_loader(
             self.version_combo_mod.currentText(), 
             self.forge_checkbox.isChecked(), 
@@ -1735,15 +1739,15 @@ class ModLoaderAndVersionMenu(QDialog):
         layout = QVBoxLayout(download_version_tab)
 
         # Create title label
-        title_label = QLabel('Download Version')
+        title_label = QLabel(self.tr('Download Version'))
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
         # Create checkboxes for different version types
-        self.release_checkbox = QCheckBox('Releases')
-        self.snapshot_checkbox = QCheckBox('Snapshots')
-        self.alpha_checkbox = QCheckBox('Alpha')
-        self.beta_checkbox = QCheckBox('Beta')
+        self.release_checkbox = QCheckBox(self.tr('Releases'))
+        self.snapshot_checkbox = QCheckBox(self.tr('Snapshots'))
+        self.alpha_checkbox = QCheckBox(self.tr('Alpha'))
+        self.beta_checkbox = QCheckBox(self.tr('Beta'))
         layout.addWidget(self.release_checkbox)
         layout.addWidget(self.snapshot_checkbox)
         layout.addWidget(self.alpha_checkbox)
@@ -1771,10 +1775,10 @@ class ModLoaderAndVersionMenu(QDialog):
                     if process.returncode != 0:
                         raise subprocess.CalledProcessError(process.returncode, process.args, error)
                 except FileNotFoundError:
-                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+                    logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
                     return
                 except subprocess.CalledProcessError as e:
-                    logging.error("Error: %s", e.stderr)
+                    logging.error(self.tr("Error: %s"), e.stderr)
                     return
 
                 # Parse the output and replace '[local]' with a space
@@ -1790,7 +1794,7 @@ class ModLoaderAndVersionMenu(QDialog):
         self.beta_checkbox.clicked.connect(update_versions)
 
         # Create download button
-        self.download_button = QPushButton('Download')
+        self.download_button = QPushButton(self.tr('Download'))
         self.download_button.setEnabled(False)  # Initially disabled
         self.download_button.clicked.connect(lambda: self.download_version(self.version_combo.currentText()))
         layout.addWidget(self.download_button)
@@ -1803,10 +1807,10 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def show_popup(self):
         self.popup = QDialog(self)
-        self.popup.setWindowTitle("Installing Version")
+        self.popup.setWindowTitle(self.tr("Installing Version"))
         layout = QVBoxLayout(self.popup)
 
-        label = QLabel("The version is being installed...")
+        label = QLabel(self.tr("The version is being installed..."))
         layout.addWidget(label)
 
         movie = QMovie("drums.gif")
@@ -1830,9 +1834,9 @@ class ModLoaderAndVersionMenu(QDialog):
     def on_download_completed(self, success, message):
         self.popup.close()
         if success:
-            QMessageBox.information(self, "Success", message)
+            QMessageBox.information(self, self.tr("Success"), message)
         else:
-            QMessageBox.critical(self, "Error", message)
+            QMessageBox.critical(self, self.tr("Error"), message)
         logging.error(message)
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
@@ -1842,10 +1846,10 @@ class ModLoaderAndVersionMenu(QDialog):
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args, error)
         except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
+            logging.error(self.tr("'picomc' command not found. Please make sure it's installed and in your PATH."))
             return
         except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
+            logging.error(self.tr("Error: %s"), e.stderr)
             return
 
         if install_fabric:
@@ -1860,7 +1864,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def install_mod_loader(self, version, install_forge, install_fabric):
         if not install_forge and not install_fabric:
-            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            QMessageBox.warning(self, self.tr("Select Mod Loader"), self.tr("Please select at least one mod loader."))
             return
 
         mod_loader = None
@@ -1870,7 +1874,7 @@ class ModLoaderAndVersionMenu(QDialog):
             mod_loader = 'fabric'
 
         if not mod_loader:
-            QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
+            QMessageBox.warning(self, self.tr("Select Mod Loader"), self.tr("Please select at least one mod loader."))
             return
 
         try:
@@ -1878,13 +1882,12 @@ class ModLoaderAndVersionMenu(QDialog):
                 subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
             elif mod_loader == 'fabric':
                 subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
-            QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
+            QMessageBox.information(self, self.tr("Success"), self.tr(f"{mod_loader.capitalize()} installed successfully for version {version}!"))
         except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
-            QMessageBox.critical(self, "Error", error_message)
+            error_message = self.tr(f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}")
+            QMessageBox.critical(self, self.tr("Error"), error_message)
             logging.error(error_message)
-
-
+            
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     current_date = datetime.now()
