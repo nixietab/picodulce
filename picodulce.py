@@ -373,9 +373,8 @@ class PicomcVersionSelector(QWidget):
         language_dropdown = QComboBox()
         languages = {
             "English": "en",
-            "Spanish": "es",
-            "French": "fr",
-            "German": "de"
+            "Español": "es",
+            "Italiano": "it"
             # Here will be more
         }
         
