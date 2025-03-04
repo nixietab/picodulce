@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Picodulce Launcher - Simple FOSS Minecraft Launcher</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="https://github.com/nixietab/picodulce/assets/75538775/36fee78f-fb46-400c-8b14-dda5ec6191ef" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            document.querySelectorAll('.step h3').forEach(header => {
+                header.addEventListener('click', () => {
+                    const content = header.nextElementSibling;
+                    if (content.style.display === 'none' || content.style.display === '') {
+                        content.style.display = 'block';
+                        content.classList.add('unfold');
+                    } else {
+                        content.style.display = 'none';
+                        content.classList.remove('unfold');
+                    }
+                    header.querySelector('i').classList.toggle('rotate');
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="https://github.com/nixietab/picodulce/assets/75538775/36fee78f-fb46-400c-8b14-dda5ec6191ef" alt="Picodulce Logo" class="logo">
+            <span class="project-name">Picodulce</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#installation">Installation</a>
+            <a href="https://github.com/nixietab/picodulce-themes">Themes</a>
+            <a href="https://github.com/nixietab/picodulce" class="github-link">
+                <i class="fab fa-github"></i> GitHub
+            </a>
+        </div>
+    </nav>
+
+    <header id="home" class="hero">
+        <div class="hero-content">
+            <h1>Picodulce Launcher</h1>
+            <p class="hero-subtitle">The simple FOSS launcher you've been looking for</p>
+            <div class="stats">
+            </div>
+            <div class="cta-buttons">
+                <a href="https://github.com/nixietab/picodulce/releases/latest" class="cta-button primary">Download</a>
+                <a href="#installation" class="cta-button secondary">Installation Guide</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="features" class="features">
+            <h2>Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <i class="fas fa-gamepad"></i>
+                    <h3>Version Management</h3>
+                    <p>Download and launch all available game versions, from the latest updates to older versions.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-users"></i>
+                    <h3>Online & Offline Support</h3>
+                    <p>Play with or without Microsoft connection - enjoy your game in both offline and online modes.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-puzzle-piece"></i>
+                    <h3>Mod Manager</h3>
+                    <p>Built-in Marroc Mod Manager for effortless mod and texturepack management.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-paint-brush"></i>
+                    <h3>Custom Themes</h3>
+                    <p>Create and apply your own personalized themes with our theming system.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="installation" class="installation">
+            <h2>Installation</h2>
+            <div class="installation-steps">
+                <div class="step windows">
+                    <h3><i class="fas fa-angle-down"></i> <i class="fab fa-windows"></i> Windows</h3>
+                    <div style="display: none;">
+                        <p>Download and run the installer from our latest release:</p>
+                        <a href="https://github.com/nixietab/picodulce/releases/latest" class="install-button">Download Installer</a>
+                    </div>
+                </div>
+                
+                <div class="step arch">
+                    <h3><i class="fas fa-angle-down"></i> <i class="fab fa-linux"></i> Arch Linux</h3>
+                    <div style="display: none;">
+                        <p>Install from AUR:</p>
+                        <pre><code>yay -S picodulce</code></pre>
+                        <p>Or manually:</p>
+                        <pre><code>git clone https://aur.archlinux.org/picodulce.git
+cd picodulce
+makepkg -si</code></pre>
+                    </div>
+                </div>
+
+                <div class="step other">
+                    <h3><i class="fas fa-angle-down"></i> <i class="fas fa-code"></i> Any OS</h3>
+                    <div style="display: none;">
+                        <pre><code># 1. Clone the repository
+git clone https://github.com/nixietab/picodulce
+
+# 2. Create virtual environment
+python -m venv venv
+
+# 3. Activate virtual environment
+# Linux/Mac:
+source venv/bin/activate
+# Windows:
+.\\venv\\Scripts\\activate
+
+# 4. Install requirements
+pip install -r requirements.txt
+
+# 5. Run the launcher
+python picodulce.py</code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <a href="https://github.com/nixietab/picodulce-themes"><i class="fas fa-palette"></i> Themes Repository</a>
+                <a href="https://github.com/nixietab/marroc"><i class="fas fa-cube"></i> Marroc Mod Manager</a>
+            </div>
+            <div class="footer-section">
+                <h4>Community</h4>
+                <a href="https://github.com/nixietab/picodulce/issues"><i class="fas fa-bug"></i> Report Issues</a>
+                <a href="https://github.com/nixietab/picodulce/pulls"><i class="fas fa-code-branch"></i> Contribute</a>
+            </div>
+            <div class="footer-section">
+                <h4>About</h4>
+                <p class="about-text">Picodulce, named after a popular Argentinian candy, is a feature-rich Qt5-based Minecraft launcher providing a seamless gaming experience.</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Picodulce Launcher. Licensed under GNU General Public License v2.0.</p>
+        </div>
+    </footer>
+</body>
+</html>
