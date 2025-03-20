@@ -13,10 +13,11 @@ import time
 
 from authser import MinecraftAuthenticator
 from healthcheck import HealthCheck
+from gamerun import MinecraftLauncher
 
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTimer
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,6 +35,10 @@ class PicomcVersionSelector(QWidget):
 
         themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
+
+        # Set up the minecraft runner
+        self.gamerun = MinecraftLauncher()
+        self.gamerun.set_parent_widget(self)
 
         # Ensure the theme file exists in the themes directory
         theme_file_path = os.path.join(themes_folder, theme_file)
@@ -847,29 +852,33 @@ class PicomcVersionSelector(QWidget):
             self.current_state = selected_instance
 
             # Read the config.json to get the "Instance" value
-            with open('config.json', 'r') as config_file:
-                config = json.load(config_file)
-                instance_value = config.get("Instance", "default")  # Default to "default" if not found
+            try:
+                with open('config.json', 'r') as config_file:
+                    config = json.load(config_file)
+                    instance_value = config.get("Instance", "default")
+            except Exception as e:
+                logging.error(f"Error reading config.json: {e}")
+                self.showError("Error", "Could not read configuration file")
+                return
 
             # Update lastplayed field in config.json on a separate thread
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
 
-            # Run the game subprocess with the instance_value from config.json
-            subprocess.run(['picomc', 'instance', 'launch', '--version-override', selected_instance, instance_value], check=True)
+            # Prepare the command
+            cmd = ['picomc', 'instance', 'launch', '--version-override', selected_instance, instance_value]
 
-        except subprocess.CalledProcessError as e:
+            # Launch the game using the MinecraftLauncher
+            self.gamerun.launch_game(cmd)
+
+        except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
             logging.error(error_message)
-            # Use QMetaObject.invokeMethod to call showError safely
-            QMetaObject.invokeMethod(
-                self, "showError", Qt.QueuedConnection,
-                Q_ARG(str, "Error"), Q_ARG(str, error_message)
-            )
+            self.showError("Error", error_message)
         finally:
             # Reset current_state to "menu" after the game closes
             self.current_state = "menu"
-            
+
     def update_last_played(self, selected_instance):
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
