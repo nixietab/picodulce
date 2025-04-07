@@ -13,13 +13,14 @@ import time
 
 from authser import MinecraftAuthenticator
 from healthcheck import HealthCheck
+import modulecli
 
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
 
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
 
 class PicomcVersionSelector(QWidget):
     def __init__(self):
@@ -126,11 +127,13 @@ class PicomcVersionSelector(QWidget):
         try:
             self.config_path = "config.json"
             print("Running picomc instance create default command...")
-            # Run the command using subprocess
-            result = subprocess.run(["picomc", "instance", "create", "default"], check=True, capture_output=True, text=True)
+            
+            # Run the command using modulecli
+            command = "instance create default"
+            result = modulecli.run_command(command)
             
             # Print the output of the command
-            print("Command output:", result.stdout)
+            print("Command output:", result)
             
             # Change the value of IsFirstLaunch to False
             self.config["IsFirstLaunch"] = False
@@ -141,9 +144,9 @@ class PicomcVersionSelector(QWidget):
                 json.dump(self.config, f, indent=4)
             print("Configuration saved to", self.config_path)
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print("An error occurred while creating the instance.")
-            print("Error output:", e.stderr)
+            print("Error output:", str(e))
 
     def resize_event(self, event):
         if hasattr(self, 'movie_label'):
@@ -394,8 +397,8 @@ class PicomcVersionSelector(QWidget):
                 discord_rcp_checkbox.isChecked(),
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
-                self.selected_theme,  # Pass the selected theme here
-                bleeding_edge_checkbox.isChecked()  # Pass the bleeding edge setting here
+                self.selected_theme,
+                bleeding_edge_checkbox.isChecked() 
             )
         )
 
@@ -659,20 +662,6 @@ class PicomcVersionSelector(QWidget):
         )
         self.__init__()
 
-    def get_palette(self, palette_type):
-        """Retrieve the corresponding palette based on the palette type."""
-        palettes = {
-            "Dark": self.create_dark_palette,
-            "Obsidian": self.create_obsidian_palette,
-            "Redstone": self.create_redstone_palette,
-            "Alpha": self.create_alpha_palette,
-            "Strawberry": self.create_strawberry_palette,
-            "Native": self.create_native_palette,
-            "Christmas": self.create_christmas_palette,
-        }
-        # Default to dark palette if the type is not specified or invalid
-        return palettes.get(palette_type, self.create_dark_palette)()
-
     def get_system_info(self):
         # Get system information
         java_version = subprocess.getoutput("java -version 2>&1 | head -n 1")
@@ -712,15 +701,15 @@ class PicomcVersionSelector(QWidget):
 
     def open_game_directory(self):
         try:
-            # Run the command and capture the output
-            result = subprocess.run(['picomc', 'instance', 'dir'], capture_output=True, text=True, check=True)
-            game_directory = result.stdout.strip()
+            # Run the command using modulecli
+            command = "instance dir"
+            result = modulecli.run_command(command)
+            game_directory = result.strip()
 
             # Open the directory in the system's file explorer
             QDesktopServices.openUrl(QUrl.fromLocalFile(game_directory))
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print(f"Error running picomc command: {e}")
-
 
     def populate_installed_versions(self):
         config_path = "config.json"
@@ -742,20 +731,17 @@ class PicomcVersionSelector(QWidget):
 
         # Run the command and capture the output
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
+            command = "version list"
+            output = modulecli.run_command(command)
             
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, output=output, stderr=error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please ensure it's installed and in your PATH.")
-            return
-        except subprocess.CalledProcessError as e:
-            logging.error("Error running 'picomc': %s", e.stderr)
+            if not output:
+                raise Exception("Failed to get output from modulecli")
+        except Exception as e:
+            logging.error("Error running 'picomc': %s", e)
             return
 
         # Parse the output and replace '[local]' with a space
-        versions = [version.replace('[local]', ' ').strip() for version in output.splitlines()]
+        versions = [version.replace('[local]', ' ').strip() for version in output.splitlines() if version.strip()]
 
         # Get the last played version from the config
         last_played = self.config.get("LastPlayed", "")
@@ -768,32 +754,26 @@ class PicomcVersionSelector(QWidget):
         # Populate the installed versions combo box
         self.installed_version_combo.clear()
         self.installed_version_combo.addItems(versions)
-
+    
     def populate_installed_versions_normal_order(self):
         # Run the 'picomc instance create default' command at the start
         try:
-            process = subprocess.Popen(['picomc', 'instance', 'create', 'default'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
-        except subprocess.CalledProcessError as e:
-            logging.error("Error creating default instance: %s", e.stderr)
+            command = "instance create default"
+            output = modulecli.run_command(command)
+            if not output:
+                raise Exception("Failed to get output from modulecli for 'instance create default'")
+        except Exception as e:
+            logging.error("Error creating default instance: %s", str(e))
             return
 
         # Run the 'picomc version list' command and get the output
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
-        except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
+            command = "version list"
+            output = modulecli.run_command(command)
+            if not output:
+                raise Exception("Failed to get output from modulecli for 'version list'")
+        except Exception as e:
+            logging.error("Error: %s", str(e))
             return
 
         # Parse the output and replace '[local]' with a space
@@ -820,7 +800,7 @@ class PicomcVersionSelector(QWidget):
 
         # Check if there are any accounts
         try:
-            account_list_output = subprocess.check_output(["picomc", "account", "list"]).decode("utf-8").strip()
+            account_list_output = modulecli.run_command("account list").strip()
             if not account_list_output:
                 QMessageBox.warning(self, "No Account Available", "Please create an account first.")
                 return
@@ -829,17 +809,24 @@ class PicomcVersionSelector(QWidget):
             if '*' not in account_list_output:
                 QMessageBox.warning(self, "No Account Selected", "Please select an account.")
                 return
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             error_message = f"Error fetching accounts: {str(e)}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
             return
 
         selected_instance = self.installed_version_combo.currentText()
-        logging.info(f"Selected instance: {selected_instance}")
+        logging.info(f"Selected instance from dropdown: {selected_instance}")
+
+        # Verify the selected instance value before starting the game
+        if not selected_instance:
+            logging.error("No instance selected.")
+            QMessageBox.warning(self, "No Instance Selected", "Please select an instance.")
+            return
 
         play_thread = threading.Thread(target=self.run_game, args=(selected_instance,))
         play_thread.start()
+
 
     def run_game(self, selected_instance):
         try:
@@ -855,10 +842,14 @@ class PicomcVersionSelector(QWidget):
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
 
-            # Run the game subprocess with the instance_value from config.json
-            subprocess.run(['picomc', 'instance', 'launch', '--version-override', selected_instance, instance_value], check=True)
+            # Run the game using the modulecli module
+            command = f"instance launch --version-override {selected_instance} {instance_value}"
+            output = modulecli.run_command(command)
+            
+            if not output:
+                raise Exception("Failed to get output from modulecli")
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
             logging.error(error_message)
             # Use QMetaObject.invokeMethod to call showError safely
@@ -869,6 +860,7 @@ class PicomcVersionSelector(QWidget):
         finally:
             # Reset current_state to "menu" after the game closes
             self.current_state = "menu"
+            
             
     def update_last_played(self, selected_instance):
         config_path = "config.json"
@@ -967,16 +959,16 @@ class PicomcVersionSelector(QWidget):
             return
 
         try:
-            command = ['picomc', 'account', 'create', username]
+            command = f"account create {username}"
             if is_microsoft:
-                command.append('--ms')
+                command += " --ms"
 
-            subprocess.run(command, check=True)
+            modulecli.run_command(command)
             QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
             self.populate_accounts_for_all_dialogs()
             dialog.accept()
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error creating account: {e.stderr.decode()}"
+        except Exception as e:
+            error_message = f"Error creating account: {str(e)}"
             logging.error(error_message)
             QMessageBox.critical(dialog, "Error", error_message)
 
@@ -1029,23 +1021,21 @@ class PicomcVersionSelector(QWidget):
         confirm_dialog = QMessageBox.question(dialog, "Confirm Removal", confirm_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm_dialog == QMessageBox.Yes:
             try:
-                subprocess.run(['picomc', 'account', 'remove', username], check=True)
+                command = f"account remove {username}"
+                modulecli.run_command(command)
                 QMessageBox.information(dialog, "Success", f"Account '{username}' removed successfully!")
                 self.populate_accounts_for_all_dialogs()
-            except subprocess.CalledProcessError as e:
-                error_message = f"Error removing account: {e.stderr.decode()}"
+            except Exception as e:
+                error_message = f"Error removing account: {str(e)}"
                 logging.error(error_message)
                 QMessageBox.critical(dialog, "Error", error_message)
-
 
     def populate_accounts(self, account_combo):
         # Populate the account dropdown
         try:
-            process = subprocess.Popen(['picomc', 'account', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-
+            command = "account list"
+            output = modulecli.run_command(command)
+            
             # Process accounts, keeping the one with "*" at the top
             accounts = output.splitlines()
             starred_account = None
@@ -1069,10 +1059,8 @@ class PicomcVersionSelector(QWidget):
             for account in normal_accounts:
                 account_combo.addItem(account)
 
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Error: {e.stderr}")
+        except Exception as e:
+            logging.error(f"Error: {str(e)}")
 
     def populate_accounts_for_all_dialogs(self):
         # Update account dropdowns in all open dialogs
@@ -1089,13 +1077,15 @@ class PicomcVersionSelector(QWidget):
             return
 
         try:
-            subprocess.run(['picomc', 'account', 'setdefault', account_name], check=True)
+            command = f"account setdefault {account_name}"
+            modulecli.run_command(command)
             QMessageBox.information(self, "Success", f"Account '{account_name}' set as default!")
             self.populate_accounts_for_all_dialogs()
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error setting default account '{account_name}': {e.stderr.decode()}"
+        except Exception as e:
+            error_message = f"Error setting default account '{account_name}': {str(e)}"
             logging.error(error_message)
             QMessageBox.critical(self, "Error", error_message)
+
 
     def show_about_dialog(self):
         # Load the version number from version.json
@@ -1326,10 +1316,11 @@ class DownloadThread(QThread):
 
     def run(self):
         try:
-            subprocess.run(['picomc', 'version', 'prepare', self.version], check=True)
+            command = f"version prepare {self.version}"
+            modulecli.run_command(command)
             self.completed.emit(True, f"Version {self.version} prepared successfully!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error preparing {self.version}: {e.stderr.decode()}"
+        except Exception as e:
+            error_message = f"Error preparing {self.version}: {str(e)}"
             self.completed.emit(False, error_message)
 
 class ModLoaderAndVersionMenu(QDialog):
@@ -1346,11 +1337,11 @@ class ModLoaderAndVersionMenu(QDialog):
         # Create tabs
         install_mod_tab = QWidget()
         download_version_tab = QWidget()
-        instances_tab = QWidget()  # New tab for instances
+        instances_tab = QWidget()
 
         tab_widget.addTab(download_version_tab, "Download Version")
         tab_widget.addTab(install_mod_tab, "Install Mod Loader")
-        tab_widget.addTab(instances_tab, "Instances")  # Add the new tab
+        tab_widget.addTab(instances_tab, "Instances")
 
         # Add content to "Install Mod Loader" tab
         self.setup_install_mod_loader_tab(install_mod_tab)
@@ -1402,11 +1393,8 @@ class ModLoaderAndVersionMenu(QDialog):
         if instance_name:
             try:
                 # Run the "picomc instance create" command
-                process = subprocess.Popen(['picomc', 'instance', 'create', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                output, error = process.communicate()
-
-                if process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, process.args, error)
+                command = f"instance create {instance_name}"
+                modulecli.run_command(command)
 
                 # Notify the user that the instance was created
                 QMessageBox.information(self, "Instance Created", f"Instance '{instance_name}' has been created successfully.")
@@ -1417,11 +1405,9 @@ class ModLoaderAndVersionMenu(QDialog):
                 # Optionally select the newly created instance
                 self.on_instance_selected(self.instances_list_widget.item(self.instances_list_widget.count() - 1))
 
-            except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            except subprocess.CalledProcessError as e:
-                logging.error("Error creating instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to create instance: {e.stderr}")
+            except Exception as e:
+                logging.error("Error creating instance: %s", str(e))
+                QMessageBox.critical(self, "Error", f"Failed to create instance: {str(e)}")
         else:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid instance name.")
 
@@ -1432,14 +1418,8 @@ class ModLoaderAndVersionMenu(QDialog):
 
         try:
             # Run the "picomc instance rename" command
-            process = subprocess.Popen(
-                ['picomc', 'instance', 'rename', old_instance_name, new_instance_name],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            output, error = process.communicate()
-
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
+            command = f"instance rename {old_instance_name} {new_instance_name}"
+            modulecli.run_command(command)
 
             QMessageBox.information(self, "Instance Renamed", f"Instance '{old_instance_name}' has been renamed to '{new_instance_name}' successfully.")
 
@@ -1451,11 +1431,9 @@ class ModLoaderAndVersionMenu(QDialog):
             if matching_items:
                 self.instances_list_widget.setCurrentItem(matching_items[0])
 
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-        except subprocess.CalledProcessError as e:
-            logging.error("Error renaming instance: %s", e.stderr)
-            QMessageBox.critical(self, "Error", f"Failed to rename instance: {e.stderr}")
+        except Exception as e:
+            logging.error("Error renaming instance: %s", str(e))
+            QMessageBox.critical(self, "Error", f"Failed to rename instance: {str(e)}")
 
     def delete_instance(self, instance_name):
         if instance_name == "default":
@@ -1470,11 +1448,8 @@ class ModLoaderAndVersionMenu(QDialog):
         if confirm_delete == QMessageBox.Yes:
             try:
                 # Run the "picomc instance delete" command
-                process = subprocess.Popen(['picomc', 'instance', 'delete', instance_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                output, error = process.communicate()
-
-                if process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, process.args, error)
+                command = f"instance delete {instance_name}"
+                modulecli.run_command(command)
 
                 # Notify the user that the instance was deleted
                 QMessageBox.information(self, "Instance Deleted", f"Instance '{instance_name}' has been deleted successfully.")
@@ -1482,19 +1457,16 @@ class ModLoaderAndVersionMenu(QDialog):
                 # Reload the instances list
                 self.load_instances()
 
-            except FileNotFoundError:
-                logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            except subprocess.CalledProcessError as e:
-                logging.error("Error deleting instance: %s", e.stderr)
-                QMessageBox.critical(self, "Error", f"Failed to delete instance: {e.stderr}")
+            except Exception as e:
+                logging.error("Error deleting instance: %s", str(e))
+                QMessageBox.critical(self, "Error", f"Failed to delete instance: {str(e)}")
 
     def load_instances(self):
         try:
-            process = subprocess.Popen(['picomc', 'instance', 'list'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-
+            # Run the "picomc instance list" command
+            command = "instance list"
+            output = modulecli.run_command(command)
+            
             # Parse the output and add each instance to the list widget
             instances = output.splitlines()
             self.instances_list_widget.clear()  # Clear the previous list
@@ -1503,10 +1475,9 @@ class ModLoaderAndVersionMenu(QDialog):
                 self.instances_list_widget.addItem(item)
                 self.add_instance_buttons(item, instance)
 
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-        except subprocess.CalledProcessError as e:
-            logging.error("Error fetching instances: %s", e.stderr)
+        except Exception as e:
+            logging.error("Error fetching instances: %s", str(e))
+
 
     def add_instance_buttons(self, list_item, instance_name):
         widget = QWidget()
@@ -1662,21 +1633,19 @@ class ModLoaderAndVersionMenu(QDialog):
                 options.append('--beta')
             if options:
                 try:
-                    process = subprocess.Popen(['picomc', 'version', 'list'] + options, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    output, error = process.communicate()
-                    if process.returncode != 0:
-                        raise subprocess.CalledProcessError(process.returncode, process.args, error)
-                except FileNotFoundError:
-                    logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-                    return
-                except subprocess.CalledProcessError as e:
-                    logging.error("Error: %s", e.stderr)
-                    return
+                    command = 'version list ' + ' '.join(options)
+                    output = modulecli.run_command(command)
+                    if "Error" in output:
+                        logging.error(output)
+                        return
 
-                # Parse the output and replace '[local]' with a space
-                versions = output.splitlines()
-                versions = [version.replace('[local]', ' ').strip() for version in versions]
-                self.version_combo.addItems(versions)
+                    # Parse the output and replace '[local]' with a space
+                    versions = output.splitlines()
+                    versions = [version.replace('[local]', ' ').strip() for version in versions]
+                    self.version_combo.addItems(versions)
+                except Exception as e:
+                    logging.error("Unexpected error: %s", e)
+                    return
             # Update the download button state whenever versions are updated
             self.update_download_button_state()
 
@@ -1693,7 +1662,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
         # Connect the combo box signal to the update function
         self.version_combo.currentIndexChanged.connect(self.update_download_button_state)
-
+        
     def update_download_button_state(self):
         self.download_button.setEnabled(self.version_combo.currentIndex() != -1)
 
@@ -1733,15 +1702,10 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
         try:
-            process = subprocess.Popen(['picomc', 'version', 'list', '--release'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output, error = process.communicate()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, process.args, error)
-        except FileNotFoundError:
-            logging.error("'picomc' command not found. Please make sure it's installed and in your PATH.")
-            return
-        except subprocess.CalledProcessError as e:
-            logging.error("Error: %s", e.stderr)
+            command = "version list --release"
+            output = modulecli.run_command(command)
+        except Exception as e:
+            logging.error("Error: %s", str(e))
             return
 
         if install_fabric:
@@ -1771,12 +1735,13 @@ class ModLoaderAndVersionMenu(QDialog):
 
         try:
             if mod_loader == 'forge':
-                subprocess.run(['picomc', 'mod', 'loader', 'forge', 'install', '--game', version], check=True)
+                command = f"mod loader forge install --game {version}"
             elif mod_loader == 'fabric':
-                subprocess.run(['picomc', 'mod', 'loader', 'fabric', 'install', version], check=True)
+                command = f"mod loader fabric install {version}"
+            modulecli.run_command(command)
             QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error installing {mod_loader} for version {version}: {e.stderr.decode()}"
+        except Exception as e:
+            error_message = f"Error installing {mod_loader} for version {version}: {str(e)}"
             QMessageBox.critical(self, "Error", error_message)
             logging.error(error_message)
 
