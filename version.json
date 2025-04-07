@@ -10,5 +10,5 @@
     "https://raw.githubusercontent.com/nixietab/picodulce/main/authser.py",
     "https://raw.githubusercontent.com/nixietab/picodulce/main/healthcheck.py"
   ],
-  "versionBleeding": "0.12.1-190"
+  "versionBleeding": "0.13-192"
 }
