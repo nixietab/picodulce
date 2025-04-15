@@ -1303,7 +1303,7 @@ class PicomcVersionSelector(QWidget):
 
 
     def open_mod_loader_and_version_menu(self):
-        dialog = ModLoaderAndVersionMenu()
+        dialog = ModLoaderAndVersionMenu(parent=self)
         dialog.finished.connect(self.populate_installed_versions)
         dialog.exec_()
 
@@ -1324,10 +1324,17 @@ class DownloadThread(QThread):
             self.completed.emit(False, error_message)
 
 class ModLoaderAndVersionMenu(QDialog):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowTitle("Mod Loader and Version Menu")
-        self.setGeometry(100, 100, 400, 300)
+        # Set window position relative to parent
+        if parent:
+            parent_pos = parent.pos()
+            x = parent_pos.x() + (parent.width() - 400) // 2
+            y = parent_pos.y() + (parent.height() - 300) // 2
+            self.setGeometry(x, y, 400, 300)
+        else:
+            self.setGeometry(100, 100, 400, 300)
 
         main_layout = QVBoxLayout(self)
 
