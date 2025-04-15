@@ -1,5 +1,6 @@
 picomc
 PyQt5
 requests
+aiohttp
 pypresence
 tqdm
