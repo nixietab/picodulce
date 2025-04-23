@@ -832,6 +832,7 @@ class PicomcVersionSelector(QWidget):
         try:
             # Set current_state to the selected instance
             self.current_state = selected_instance
+            self.start_time = time.time()
 
             # Read the config.json to get the "Instance" value
             with open('config.json', 'r') as config_file:
@@ -860,6 +861,7 @@ class PicomcVersionSelector(QWidget):
         finally:
             # Reset current_state to "menu" after the game closes
             self.current_state = "menu"
+            self.update_total_playtime(self.start_time)
             
             
     def update_last_played(self, selected_instance):
@@ -868,6 +870,12 @@ class PicomcVersionSelector(QWidget):
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
+    def update_total_playtime(self, start_time):
+        config_path = "config.json"
+        self.config["TotalPlaytime"] += time.time() - self.start_time
+        print("TOTAL PLAYTIME:" + str(self.config["TotalPlaytime"]))
+        with open(config_path, "w") as config_file:
+            json.dump(self.config, config_file, indent=4)
 
     def showError(self, title, message):
         QMessageBox.critical(self, title, message)
@@ -1087,6 +1095,21 @@ class PicomcVersionSelector(QWidget):
             QMessageBox.critical(self, "Error", error_message)
 
 
+    def get_playtime(self, config_data):
+
+        #Gets the playtime from the json and
+        total_playtime = config_data.get("TotalPlaytime")/60
+        
+        #if total playtime is over 60 minutes, uses hours instead
+        if(total_playtime > 60):
+            total_playtime = total_playtime / 60
+            playtime_unit = "hours"
+        else:
+            playtime_unit = "minutes"
+        total_playtime = round(total_playtime)
+        #returs the playtime and the unit used to measure in a string
+        return(f"{total_playtime} {playtime_unit}")
+
     def show_about_dialog(self):
         # Load the version number from version.json
         try:
@@ -1110,13 +1133,16 @@ class PicomcVersionSelector(QWidget):
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
+
+
         about_message = (
             f"PicoDulce Launcher (v{version_number})\n\n"
             "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
             "Credits:\n"
             "Nixietab: Code and UI design\n"
             "Wabaano: Graphic design\n"
-            "Olinad: Christmas!!!!"
+            "Olinad: Christmas!!!!\n\n"
+            f"Playtime:  {self.get_playtime(config_data)}"
         )
         QMessageBox.about(self, "About", about_message)
 
