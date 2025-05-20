@@ -14,12 +14,16 @@ class HealthCheck:
             "CheckUpdate": False,
             "IsBleeding": False,
             "LastPlayed": "",
+            "TotalPlaytime": 0,
             "IsFirstLaunch": True,
             "Instance": "default",
             "Theme": "Dark.json",
             "ThemeBackground": True,
             "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json",
-            "Locale": "en"
+            "Locale": "en",
+            "ManageJava": False,
+            "MaxRAM": 2,
+            "JavaPath": ""
         }
 
         # Step 1: Check if the file exists; if not, create it with default values
