@@ -1,4 +1,5 @@
 picomc
+zucaro
 PyQt5
 requests
 aiohttp
