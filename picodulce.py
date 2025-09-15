@@ -15,7 +15,7 @@ from authser import MinecraftAuthenticator
 from healthcheck import HealthCheck
 import modulecli
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
@@ -31,6 +31,7 @@ class PicomcVersionSelector(QWidget):
         health_checker = HealthCheck()
         health_checker.themes_integrity()
         health_checker.check_config_file()
+        health_checker.zucaro_health_check()
         self.config = health_checker.config
 
         themes_folder = "themes"
@@ -296,21 +297,17 @@ class PicomcVersionSelector(QWidget):
     def open_settings_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Settings')
-
-        # Make the window resizable
         dialog.setMinimumSize(400, 300)
 
-        # Create a Tab Widget
         tab_widget = QTabWidget()
 
-        # Create the Settings Tab
+        # --- Settings Tab ---
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
         title_label = QLabel('Settings')
         title_label.setFont(QFont("Arial", 14))
 
-        # Create checkboxes for settings tab
         discord_rcp_checkbox = QCheckBox('Discord Rich Presence')
         discord_rcp_checkbox.setChecked(self.config.get("IsRCPenabled", False))
 
@@ -326,7 +323,6 @@ class PicomcVersionSelector(QWidget):
         settings_layout.addWidget(check_updates_checkbox)
         settings_layout.addWidget(bleeding_edge_checkbox)
 
-        # Add buttons in the settings tab
         update_button = QPushButton('Check for updates')
         update_button.clicked.connect(self.check_for_update)
 
@@ -342,53 +338,99 @@ class PicomcVersionSelector(QWidget):
 
         settings_tab.setLayout(settings_layout)
 
-        # Create the Customization Tab
+        # --- Customization Tab ---
         customization_tab = QWidget()
         customization_layout = QVBoxLayout()
 
-        # Create theme background checkbox for customization tab
         theme_background_checkbox = QCheckBox('Theme Background')
         theme_background_checkbox.setChecked(self.config.get("ThemeBackground", False))
 
-        # Label to show currently selected theme
         theme_filename = self.config.get('Theme', 'Dark.json')
         current_theme_label = QLabel(f"Current Theme: {theme_filename}")
 
-        # QListWidget to display available themes
         json_files_label = QLabel('Installed Themes:')
         self.json_files_list_widget = QListWidget()
-
-        # Track selected theme
-        self.selected_theme = theme_filename  # Default to current theme
-
-        # Build the list of themes
+        self.selected_theme = theme_filename
         themes_list = self.build_themes_list()
-        
-        # Populate themes initially
         self.populate_themes(self.json_files_list_widget, themes_list)
-
-        # Update current theme label when a theme is selected
         self.json_files_list_widget.itemClicked.connect(
             lambda: self.on_theme_selected(self.json_files_list_widget, current_theme_label)
         )
 
-        # Add widgets to the layout
         customization_layout.addWidget(theme_background_checkbox)
         customization_layout.addWidget(current_theme_label)
         customization_layout.addWidget(json_files_label)
         customization_layout.addWidget(self.json_files_list_widget)
 
-        # Button to download themes
         download_themes_button = QPushButton("Download More Themes")
         download_themes_button.clicked.connect(self.download_themes_window)
-
         customization_layout.addWidget(download_themes_button)
 
         customization_tab.setLayout(customization_layout)
 
-        # Add the tabs to the TabWidget
+        # --- Java Tab ---
+        java_tab = QWidget()
+        java_layout = QVBoxLayout()
+
+        # Java path input with browse button
+        java_path_layout = QHBoxLayout()
+        java_path_input = QLineEdit()
+        java_path_input.setPlaceholderText("Custom Java Installation Path")
+        java_path_input.setText(self.config.get("JavaPath", ""))
+        browse_button = QPushButton("Examine")
+        browse_button.clicked.connect(lambda: self.browse_java_path(java_path_input))
+        java_path_layout.addWidget(java_path_input)
+        java_path_layout.addWidget(browse_button)
+
+        ram_layout = QHBoxLayout()
+        ram_label = QLabel("Assigned RAM:")
+        ram_selector = QLineEdit()
+        ram_selector.setPlaceholderText("2G")  # Show default placeholder
+        
+        # RAM selector
+        ram_layout = QHBoxLayout()
+        ram_label = QLabel("Assigned RAM:")
+        ram_selector = QLineEdit()
+        ram_selector.setPlaceholderText("2G")  # Show default placeholder
+        
+        # Set initial value from config, ensuring it ends with 'G'
+        initial_ram = self.config.get("MaxRAM", "2G")
+        if not initial_ram.endswith('G'):
+            initial_ram += 'G'
+        ram_selector.setText(initial_ram)
+        
+        # Ensure 'G' is always present when focus is lost
+        def ensure_g_suffix():
+            current_text = ram_selector.text()
+            if not current_text.endswith('G'):
+                ram_selector.setText(current_text + 'G')
+        
+        ram_selector.editingFinished.connect(ensure_g_suffix)
+        
+        ram_layout.addWidget(ram_label)
+        ram_layout.addWidget(ram_selector)
+
+        # Manage Java checkbox
+        manage_java_checkbox = QCheckBox("Manage Java")
+        manage_java_checkbox.setChecked(self.config.get("ManageJava", False))
+        manage_java_info = QLabel(
+                "<b>Disclaimer:</b> Experimental feature. Do not change these settings "
+                "unless you are sure of what you are doing. "
+                " If Manage Java is enabledthe launcher will download Java binaries for your OS only for Minecraft compatibility purposes.")
+        manage_java_info.setWordWrap(True)
+
+        # Add to layout
+        java_layout.addLayout(java_path_layout)
+        java_layout.addLayout(ram_layout)
+        java_layout.addWidget(manage_java_checkbox)
+        java_layout.addWidget(manage_java_info)
+
+        java_tab.setLayout(java_layout)
+
+        # Add all tabs
         tab_widget.addTab(settings_tab, "Settings")
         tab_widget.addTab(customization_tab, "Customization")
+        tab_widget.addTab(java_tab, "Java")
 
         # Save button
         save_button = QPushButton('Save')
@@ -398,17 +440,26 @@ class PicomcVersionSelector(QWidget):
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
                 self.selected_theme,
-                bleeding_edge_checkbox.isChecked() 
+                bleeding_edge_checkbox.isChecked(),
+                java_path_input.text(),
+                ram_selector.text(),
+                manage_java_checkbox.isChecked()
             )
         )
 
-        # Main layout
         main_layout = QVBoxLayout()
         main_layout.addWidget(tab_widget)
         main_layout.addWidget(save_button)
 
         dialog.setLayout(main_layout)
         dialog.exec_()
+
+    def browse_java_path(self, java_path_input):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Java Executable")
+        if path:
+            java_path_input.setText(path)
+
+
 
     def show_bleeding_edge_popup(self, checkbox):
         if checkbox.isChecked():
@@ -638,20 +689,31 @@ class PicomcVersionSelector(QWidget):
         ## REPOSITORY BLOCK ENDS
 
 
-    def save_settings(self, is_rcp_enabled, check_updates_on_start, theme_background, selected_theme, is_bleeding):
+    def save_settings(
+        self,
+        is_rcp_enabled,
+        check_updates_on_start,
+        theme_background,
+        selected_theme,
+        is_bleeding,
+        java_path,
+        ram_allocation,
+        manage_java_enabled
+    ):
         config_path = "config.json"
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
             "ThemeBackground": theme_background,
             "Theme": selected_theme,
-            "IsBleeding": is_bleeding
+            "IsBleeding": is_bleeding,
+            "ManageJava": manage_java_enabled,
+            "MaxRAM": ram_allocation,
+            "JavaPath": java_path,
         }
 
-        # Update config values
         self.config.update(updated_config)
 
-        # Save updated config to file
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
@@ -830,40 +892,44 @@ class PicomcVersionSelector(QWidget):
 
     def run_game(self, selected_instance):
         try:
-            # Set current_state to the selected instance
             self.current_state = selected_instance
             self.start_time = time.time()
 
-            # Read the config.json to get the "Instance" value
+            # Read config
             with open('config.json', 'r') as config_file:
                 config = json.load(config_file)
-                instance_value = config.get("Instance", "default")  # Default to "default" if not found
+                instance_value = config.get("Instance", "default")
+                max_ram = config.get("MaxRAM", 2)
+                manage_java = config.get("ManageJava", False)
+                java_path = config.get("JavaPath", "")
 
-            # Update lastplayed field in config.json on a separate thread
+            # Update last played on a thread
             update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
             update_thread.start()
 
-            # Run the game using the modulecli module
-            command = f"instance launch --version-override {selected_instance} {instance_value}"
+            # Build command
+            command = f"instance launch {instance_value} --version-override {selected_instance} --assigned-ram {max_ram}"
+            if manage_java:
+                command += " --manage-java"
+            if java_path:
+                command += f" --java {java_path}"
+
+            print(f"Launching command: {command}")
+
             output = modulecli.run_command(command)
-            
+            print(f"modulecli output: {output}")
             if not output:
                 raise Exception("Failed to get output from modulecli")
 
         except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
+            print(error_message)  # Add this for debugging
             logging.error(error_message)
-            # Use QMetaObject.invokeMethod to call showError safely
-            QMetaObject.invokeMethod(
-                self, "showError", Qt.QueuedConnection,
-                Q_ARG(str, "Error"), Q_ARG(str, error_message)
-            )
+            # (Show error in UI if necessary)
         finally:
-            # Reset current_state to "menu" after the game closes
             self.current_state = "menu"
             self.update_total_playtime(self.start_time)
-            
-            
+
     def update_last_played(self, selected_instance):
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
@@ -1137,7 +1203,7 @@ class PicomcVersionSelector(QWidget):
 
         about_message = (
             f"PicoDulce Launcher (v{version_number})\n\n"
-            "A simple Minecraft launcher built using Qt, based on the picomc project.\n\n"
+            "A simple Minecraft launcher built using Qt, based on the zucaro backend.\n\n"
             "Credits:\n"
             "Nixietab: Code and UI design\n"
             "Wabaano: Graphic design\n"

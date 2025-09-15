@@ -27,7 +27,7 @@
 </p>
 
 
-  Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the picomc project, providing users with a seamless experience in managing and launching game versions.
+  Picodulce is a feature-rich launcher for Minecraft, developed using Qt5. It serves as a graphical user interface (GUI) for the [zucaro backend](https://github.com/nixietab/zucaro), providing users with a seamless experience in managing and launching game versions.
 
 
 ![imagen](https://github.com/user-attachments/assets/115b39be-47d3-4ac7-893a-5849c1e4570c)
@@ -61,7 +61,7 @@ makepkg -si
 ``` git clone https://github.com/nixietab/picodulce ```
 
 ### 2. (Optional) Set Up a Virtual Environment
-Setting up a virtual environment is recommended to avoid dependency conflicts. Picodulce relies on the path of the `picomc` project, and using a virtual environment helps prevent errors.
+Setting up a virtual environment is recommended to avoid dependency conflicts. Picodulce relies on the path of the `zucaro` project, and using a virtual environment helps prevent errors.
 
 Create the virtual environment:
 
@@ -86,7 +86,7 @@ On the venv run it as a normal python script
 
 ```python picodulce.py```
 
-Just make sure you have Java installed for running the actual game
+Just make sure you have Java installed for running the actual game, or check the "manage java" option inside the launcher settings
 
 ### About the name
 The name "Picodulce" comes from a popular Argentinian candy. This reflects the enjoyable and user-friendly experience that the launcher aims to provide, making game management straightforward and pleasant.
