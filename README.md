@@ -49,7 +49,7 @@ The package is available in the [AUR](https://aur.archlinux.org/packages/picodul
 
 For installing on Arch without using an AUR helper a PKGBUILD is provided
 ```
-git clone https://aur.archlinux.org/picodulce.git
+git clone https://github.com/nixietab/picodulce.git
 cd picodulce
 makepkg -si
 ```
