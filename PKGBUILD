@@ -1,11 +1,11 @@
 pkgname=picodulce
-pkgver=0.11.7
+pkgver=0.13.5
 pkgrel=1
-pkgdesc="Launcher for Minecraft based on the picomc library"
+pkgdesc="Launcher for Minecraft based on the zucaro library"
 arch=('x86_64')
 OPTIONS=(!strip !docs libtool emptydirs)
 url="https://github.com/nixietab/picodulce"
-license=('MIT')  # Replace with your project's license
+license=('MIT')
 depends=('python' 'python-virtualenv' 'xdg-utils')
 makedepends=('git')
 source=("git+https://github.com/nixietab/picodulce.git")
