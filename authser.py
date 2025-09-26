@@ -10,8 +10,8 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QVBoxLayout,
                            QPushButton, QLineEdit, QMessageBox)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QUrl, QObject
 from PyQt5.QtGui import QDesktopServices
-from picomc.logging import logger
-from picomc.launcher import get_default_root, Launcher
+from zucaro.logging import logger
+from zucaro.launcher import get_default_root, Launcher
 
 # Constants for Microsoft Authentication
 URL_DEVICE_AUTH = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
