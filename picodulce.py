@@ -22,7 +22,7 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
 
-class PicomcVersionSelector(QWidget):
+class zucaroVersionSelector(QWidget):
     def __init__(self):
         self.current_state = "menu"
         self.open_dialogs = []
@@ -127,7 +127,7 @@ class PicomcVersionSelector(QWidget):
     def FirstLaunch(self):
         try:
             self.config_path = "config.json"
-            print("Running picomc instance create default command...")
+            print("Running zucaro instance create default command...")
             
             # Run the command using modulecli
             command = "instance create default"
@@ -771,7 +771,7 @@ class PicomcVersionSelector(QWidget):
             # Open the directory in the system's file explorer
             QDesktopServices.openUrl(QUrl.fromLocalFile(game_directory))
         except Exception as e:
-            print(f"Error running picomc command: {e}")
+            print(f"Error running zucaro command: {e}")
 
     def populate_installed_versions(self):
         config_path = "config.json"
@@ -799,7 +799,7 @@ class PicomcVersionSelector(QWidget):
             if not output:
                 raise Exception("Failed to get output from modulecli")
         except Exception as e:
-            logging.error("Error running 'picomc': %s", e)
+            logging.error("Error running 'zucaro': %s", e)
             return
 
         # Parse the output and replace '[local]' with a space
@@ -818,7 +818,7 @@ class PicomcVersionSelector(QWidget):
         self.installed_version_combo.addItems(versions)
     
     def populate_installed_versions_normal_order(self):
-        # Run the 'picomc instance create default' command at the start
+        # Run the 'zucaro instance create default' command at the start
         try:
             command = "instance create default"
             output = modulecli.run_command(command)
@@ -828,7 +828,7 @@ class PicomcVersionSelector(QWidget):
             logging.error("Error creating default instance: %s", str(e))
             return
 
-        # Run the 'picomc version list' command and get the output
+        # Run the 'zucaro version list' command and get the output
         try:
             command = "version list"
             output = modulecli.run_command(command)
@@ -1491,7 +1491,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
         if instance_name:
             try:
-                # Run the "picomc instance create" command
+                # Run the "zucaro instance create" command
                 command = f"instance create {instance_name}"
                 modulecli.run_command(command)
 
@@ -1516,7 +1516,7 @@ class ModLoaderAndVersionMenu(QDialog):
             return
 
         try:
-            # Run the "picomc instance rename" command
+            # Run the "zucaro instance rename" command
             command = f"instance rename {old_instance_name} {new_instance_name}"
             modulecli.run_command(command)
 
@@ -1546,7 +1546,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
         if confirm_delete == QMessageBox.Yes:
             try:
-                # Run the "picomc instance delete" command
+                # Run the "zucaro instance delete" command
                 command = f"instance delete {instance_name}"
                 modulecli.run_command(command)
 
@@ -1562,7 +1562,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def load_instances(self):
         try:
-            # Run the "picomc instance list" command
+            # Run the "zucaro instance list" command
             command = "instance list"
             output = modulecli.run_command(command)
             
@@ -1858,6 +1858,6 @@ if __name__ == '__main__':
         app.setWindowIcon(QIcon('holiday.ico'))  # Set holiday icon
     else:
         app.setWindowIcon(QIcon('launcher_icon.ico'))  # Set regular icon
-    window = PicomcVersionSelector()
+    window = zucaroVersionSelector()
     window.show()
     sys.exit(app.exec_())
