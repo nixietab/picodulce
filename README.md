@@ -44,6 +44,13 @@
 ## Windows
 For Windows systems using the [installer](https://github.com/nixietab/picodulce/releases/latest) is recommended
 
+# Linux (Generic)
+We have a install script, to use it run:
+
+~~~
+curl -sSL https://raw.githubusercontent.com/nixietab/picodulce/refs/heads/main/install-universal.sh | bash
+~~~
+
 ## Arch Linux
 The package is available in the [AUR](https://aur.archlinux.org/packages/picodulce) as ```picodulce```
 
