@@ -132,8 +132,9 @@ class zucaroVersionSelector(QWidget):
             # Run the command using modulecli
             command = "instance create default"
             result = modulecli.run_command(command)
-            
-            # Print the output of the command
+            if not result:
+                print("Warning: modulecli returned empty response")
+                result = ""
             print("Command output:", result)
             
             # Change the value of IsFirstLaunch to False
@@ -766,6 +767,9 @@ class zucaroVersionSelector(QWidget):
             # Run the command using modulecli
             command = "instance dir"
             result = modulecli.run_command(command)
+            if not result:
+                print("Error: Could not retrieve game directory")
+                return
             game_directory = result.strip()
 
             # Open the directory in the system's file explorer
@@ -797,12 +801,12 @@ class zucaroVersionSelector(QWidget):
             output = modulecli.run_command(command)
             
             if not output:
-                raise Exception("Failed to get output from modulecli")
+                self.installed_version_combo.clear()
+                return
         except Exception as e:
-            logging.error("Error running 'zucaro': %s", e)
+            self.installed_version_combo.clear()
             return
 
-        # Parse the output and replace '[local]' with a space
         versions = [version.replace('[local]', ' ').strip() for version in output.splitlines() if version.strip()]
 
         # Get the last played version from the config
@@ -823,9 +827,10 @@ class zucaroVersionSelector(QWidget):
             command = "instance create default"
             output = modulecli.run_command(command)
             if not output:
-                raise Exception("Failed to get output from modulecli for 'instance create default'")
+                self.installed_version_combo.clear()
+                return
         except Exception as e:
-            logging.error("Error creating default instance: %s", str(e))
+            self.installed_version_combo.clear()
             return
 
         # Run the 'zucaro version list' command and get the output
@@ -833,9 +838,10 @@ class zucaroVersionSelector(QWidget):
             command = "version list"
             output = modulecli.run_command(command)
             if not output:
-                raise Exception("Failed to get output from modulecli for 'version list'")
+                self.installed_version_combo.clear()
+                return
         except Exception as e:
-            logging.error("Error: %s", str(e))
+            self.installed_version_combo.clear()
             return
 
         # Parse the output and replace '[local]' with a space
@@ -862,10 +868,11 @@ class zucaroVersionSelector(QWidget):
 
         # Check if there are any accounts
         try:
-            account_list_output = modulecli.run_command("account list").strip()
+            account_list_output = modulecli.run_command("account list")
             if not account_list_output:
                 QMessageBox.warning(self, "No Account Available", "Please create an account first.")
                 return
+            account_list_output = account_list_output.strip()
 
             # Check if the selected account has a '*' (indicating it's the selected one)
             if '*' not in account_list_output:
@@ -917,9 +924,9 @@ class zucaroVersionSelector(QWidget):
             print(f"Launching command: {command}")
 
             output = modulecli.run_command(command)
-            print(f"modulecli output: {output}")
             if not output:
                 raise Exception("Failed to get output from modulecli")
+            print(f"modulecli output: {output}")
 
         except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
@@ -1109,8 +1116,10 @@ class zucaroVersionSelector(QWidget):
         try:
             command = "account list"
             output = modulecli.run_command(command)
+            if not output:
+                account_combo.clear()
+                return
             
-            # Process accounts, keeping the one with "*" at the top
             accounts = output.splitlines()
             starred_account = None
             normal_accounts = []
@@ -1455,35 +1464,50 @@ class ModLoaderAndVersionMenu(QDialog):
     def setup_instances_tab(self, instances_tab):
         layout = QVBoxLayout(instances_tab)
 
-        # Create title label
         title_label = QLabel('Manage Minecraft Instances')
-        title_label.setFont(QFont("Arial", 14))
+        title_label.setFont(QFont("Arial", 14, QFont.Bold))
         layout.addWidget(title_label)
 
-        # Create a label to display the current instance
-        self.current_instance_label = QLabel('Loading...')  # Placeholder text
+        info_label = QLabel('Click an instance to select it. Right-click for more options.')
+        palette = info_label.palette()
+        info_label.setStyleSheet(f"color: {palette.color(QPalette.PlaceholderText).name()}; font-size: 10pt;")
+        layout.addWidget(info_label)
+
+        self.current_instance_label = QLabel('Current Instance: Loading...')
+        self.current_instance_label.setFont(QFont("Arial", 11, QFont.Bold))
         layout.addWidget(self.current_instance_label)
 
-        # Create a QListWidget to display the instances
+        layout.addSpacing(10)
+
+        instances_label = QLabel('Available Instances:')
+        instances_label.setFont(QFont("Arial", 10))
+        layout.addWidget(instances_label)
+
         self.instances_list_widget = QListWidget()
+        self.instances_list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.instances_list_widget.customContextMenuRequested.connect(self.show_instance_context_menu)
+        self.instances_list_widget.setAlternatingRowColors(True)
         layout.addWidget(self.instances_list_widget)
 
-        # Create input field and button to create a new instance
+        layout.addSpacing(10)
+
+        create_label = QLabel('Create New Instance:')
+        create_label.setFont(QFont("Arial", 10))
+        layout.addWidget(create_label)
+
+        create_layout = QHBoxLayout()
         self.create_instance_input = QLineEdit()
         self.create_instance_input.setPlaceholderText("Enter instance name")
-        layout.addWidget(self.create_instance_input)
+        create_layout.addWidget(self.create_instance_input)
 
-        create_instance_button = QPushButton("Create Instance")
+        create_instance_button = QPushButton("Create")
         create_instance_button.clicked.connect(self.create_instance)
-        layout.addWidget(create_instance_button)
+        create_layout.addWidget(create_instance_button)
+        
+        layout.addLayout(create_layout)
 
-        # Fetch and display the current instances
         self.load_instances()
-
-        # Connect the item selection to the instance selection method
         self.instances_list_widget.itemClicked.connect(self.on_instance_selected)
-
-        # Update the label with the current instance from the config
         self.update_instance_label()
 
     def create_instance(self):
@@ -1562,52 +1586,62 @@ class ModLoaderAndVersionMenu(QDialog):
 
     def load_instances(self):
         try:
-            # Run the "zucaro instance list" command
             command = "instance list"
             output = modulecli.run_command(command)
+            if not output:
+                self.instances_list_widget.clear()
+                return
             
-            # Parse the output and add each instance to the list widget
             instances = output.splitlines()
-            self.instances_list_widget.clear()  # Clear the previous list
+            self.instances_list_widget.clear()
+            
+            with open('config.json', 'r') as config_file:
+                config_data = json.load(config_file)
+                current_instance = config_data.get('Instance', 'default')
+            
             for instance in instances:
+                instance_name = instance.strip()
                 item = QListWidgetItem()
+                font = QFont()
+                font.setPointSize(11)
+                
+                if instance_name == current_instance:
+                    item.setText(f"★ {instance_name}")
+                else:
+                    item.setText(instance_name)
+                
+                item.setFont(font)
                 self.instances_list_widget.addItem(item)
-                self.add_instance_buttons(item, instance)
 
         except Exception as e:
             logging.error("Error fetching instances: %s", str(e))
 
-
-    def add_instance_buttons(self, list_item, instance_name):
-        widget = QWidget()
-        layout = QHBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        label = QLabel(instance_name)
-        rename_button = QPushButton("Rename")
-        delete_button = QPushButton("Delete")
-
-        # Stylize the buttons
-        button_style = """
-        QPushButton {
-            padding: 2px 5px;
-        }
-        """
-        rename_button.setStyleSheet(button_style)
-        delete_button.setStyleSheet(button_style)
-
-        layout.addWidget(label)
-        layout.addStretch()
-        layout.addWidget(rename_button)
-        layout.addWidget(delete_button)
-
-        widget.setLayout(layout)
-        list_item.setSizeHint(widget.sizeHint())
-        self.instances_list_widget.setItemWidget(list_item, widget)
-
-        # Connect button signals
-        rename_button.clicked.connect(lambda: self.prompt_rename_instance(instance_name))
-        delete_button.clicked.connect(lambda: self.delete_instance(instance_name))
+    def show_instance_context_menu(self, position):
+        item = self.instances_list_widget.itemAt(position)
+        if not item:
+            return
+        
+        instance_name = item.text().replace("★ ", "").strip()
+        
+        menu = QMenu()
+        
+        select_action = menu.addAction("Select Instance")
+        menu.addSeparator()
+        rename_action = menu.addAction("Rename")
+        delete_action = menu.addAction("Delete")
+        
+        if instance_name == "default":
+            rename_action.setEnabled(False)
+            delete_action.setEnabled(False)
+        
+        action = menu.exec_(self.instances_list_widget.mapToGlobal(position))
+        
+        if action == select_action:
+            self.on_instance_selected(item)
+        elif action == rename_action:
+            self.prompt_rename_instance(instance_name)
+        elif action == delete_action:
+            self.delete_instance(instance_name)
 
     def prompt_rename_instance(self, old_instance_name):
         new_instance_name, ok = QInputDialog.getText(
@@ -1619,8 +1653,7 @@ class ModLoaderAndVersionMenu(QDialog):
             self.rename_instance(old_instance_name, new_instance_name)
 
     def on_instance_selected(self, item):
-        widget = self.instances_list_widget.itemWidget(item)
-        instance_name = widget.findChild(QLabel).text()
+        instance_name = item.text().replace("★ ", "").strip()
 
         config_file = 'config.json'
 
@@ -1637,6 +1670,7 @@ class ModLoaderAndVersionMenu(QDialog):
                 logging.info(f"Config updated: Instance set to {instance_name}")
 
                 self.update_instance_label()
+                self.load_instances()
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
                 logging.error(f"Error reading config.json: {e}")
@@ -1652,12 +1686,12 @@ class ModLoaderAndVersionMenu(QDialog):
                     config_data = json.load(file)
 
                 current_instance = config_data.get('Instance', 'Not set')
-                self.current_instance_label.setText(f'Current instance: {current_instance}')
+                self.current_instance_label.setText(f'Current Instance: {current_instance}')
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
                 logging.error(f"Error reading config.json: {e}")
         else:
-            self.current_instance_label.setText('Current instance: Not set')
+            self.current_instance_label.setText('Current Instance: Not set')
 
 
     def setup_install_mod_loader_tab(self, install_mod_tab):
@@ -1734,11 +1768,13 @@ class ModLoaderAndVersionMenu(QDialog):
                 try:
                     command = 'version list ' + ' '.join(options)
                     output = modulecli.run_command(command)
-                    if "Error" in output:
-                        logging.error(output)
+                    if not output or "Error" in output:
+                        if not output:
+                            logging.error("Empty response from modulecli")
+                        else:
+                            logging.error(output)
                         return
 
-                    # Parse the output and replace '[local]' with a space
                     versions = output.splitlines()
                     versions = [version.replace('[local]', ' ').strip() for version in versions]
                     self.version_combo.addItems(versions)
@@ -1803,6 +1839,9 @@ class ModLoaderAndVersionMenu(QDialog):
         try:
             command = "version list --release"
             output = modulecli.run_command(command)
+            if not output:
+                logging.error("Empty response from modulecli")
+                return
         except Exception as e:
             logging.error("Error: %s", str(e))
             return
