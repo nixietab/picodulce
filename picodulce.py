@@ -14,6 +14,7 @@ import time
 from authser import MinecraftAuthenticator
 from healthcheck import HealthCheck
 import modulecli
+import loaddaemon
 
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
@@ -893,16 +894,14 @@ class zucaroVersionSelector(QWidget):
             QMessageBox.warning(self, "No Instance Selected", "Please select an instance.")
             return
 
-        play_thread = threading.Thread(target=self.run_game, args=(selected_instance,))
-        play_thread.start()
+        self.launch_game_with_window(selected_instance)
 
 
-    def run_game(self, selected_instance):
+    def launch_game_with_window(self, selected_instance):
         try:
             self.current_state = selected_instance
             self.start_time = time.time()
 
-            # Read config
             with open('config.json', 'r') as config_file:
                 config = json.load(config_file)
                 instance_value = config.get("Instance", "default")
@@ -910,11 +909,9 @@ class zucaroVersionSelector(QWidget):
                 manage_java = config.get("ManageJava", False)
                 java_path = config.get("JavaPath", "")
 
-            # Update last played on a thread
-            update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,))
+            update_thread = threading.Thread(target=self.update_last_played, args=(selected_instance,), daemon=True)
             update_thread.start()
 
-            # Build command
             command = f"instance launch {instance_value} --version-override {selected_instance} --assigned-ram {max_ram}"
             if manage_java:
                 command += " --manage-java"
@@ -922,17 +919,14 @@ class zucaroVersionSelector(QWidget):
                 command += f" --java {java_path}"
 
             print(f"Launching command: {command}")
-
-            output = modulecli.run_command(command)
-            if not output:
-                raise Exception("Failed to get output from modulecli")
-            print(f"modulecli output: {output}")
+            
+            loaddaemon.launch_instance_with_window(command, self)
 
         except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
-            print(error_message)  # Add this for debugging
+            print(error_message)
             logging.error(error_message)
-            # (Show error in UI if necessary)
+            QMessageBox.critical(self, "Error", error_message)
         finally:
             self.current_state = "menu"
             self.update_total_playtime(self.start_time)
