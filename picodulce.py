@@ -16,7 +16,7 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu, QRadioButton
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
@@ -1682,11 +1682,13 @@ class ModLoaderAndVersionMenu(QDialog):
         title_label.setFont(QFont("Arial", 14))
         layout.addWidget(title_label)
 
-        # Create checkboxes for mod loaders
-        self.forge_checkbox = QCheckBox('Forge')
-        self.fabric_checkbox = QCheckBox('Fabric')
+        # Create radio buttons for mod loaders
+        self.forge_checkbox = QRadioButton('Forge')
+        self.fabric_checkbox = QRadioButton('Fabric')
+        self.quilt_checkbox = QRadioButton('Quilt')
         layout.addWidget(self.forge_checkbox)
         layout.addWidget(self.fabric_checkbox)
+        layout.addWidget(self.quilt_checkbox)
 
         # Create dropdown menu for versions
         self.version_combo_mod = QComboBox()
@@ -1695,19 +1697,23 @@ class ModLoaderAndVersionMenu(QDialog):
         def update_versions():
             self.version_combo_mod.clear()
             if self.forge_checkbox.isChecked():
-                self.populate_available_releases(self.version_combo_mod, True, False)
+                self.populate_available_releases(self.version_combo_mod, True, False, False)
             elif self.fabric_checkbox.isChecked():
-                self.populate_available_releases(self.version_combo_mod, False, True)
+                self.populate_available_releases(self.version_combo_mod, False, True, False)
+            elif self.quilt_checkbox.isChecked():
+                self.populate_available_releases(self.version_combo_mod, False, False, True)
 
         self.forge_checkbox.clicked.connect(update_versions)
         self.fabric_checkbox.clicked.connect(update_versions)
+        self.quilt_checkbox.clicked.connect(update_versions)
 
         # Create install button
         install_button = QPushButton('Install')
         install_button.clicked.connect(lambda: self.install_mod_loader(
             self.version_combo_mod.currentText(), 
             self.forge_checkbox.isChecked(), 
-            self.fabric_checkbox.isChecked()
+            self.fabric_checkbox.isChecked(),
+            self.quilt_checkbox.isChecked()
         ))
         layout.addWidget(install_button)
 
@@ -1721,6 +1727,7 @@ class ModLoaderAndVersionMenu(QDialog):
 
         # Create checkboxes for different version types
         self.release_checkbox = QCheckBox('Releases')
+        self.release_checkbox.setChecked(True)
         self.snapshot_checkbox = QCheckBox('Snapshots')
         self.alpha_checkbox = QCheckBox('Alpha')
         self.beta_checkbox = QCheckBox('Beta')
@@ -1778,6 +1785,9 @@ class ModLoaderAndVersionMenu(QDialog):
         # Connect the combo box signal to the update function
         self.version_combo.currentIndexChanged.connect(self.update_download_button_state)
         
+        # Initial update
+        update_versions()
+        
     def update_download_button_state(self):
         self.download_button.setEnabled(self.version_combo.currentIndex() != -1)
 
@@ -1788,7 +1798,7 @@ class ModLoaderAndVersionMenu(QDialog):
         else:
             QMessageBox.critical(self, "Error", f"Failed to prepare version {version}.")
 
-    def populate_available_releases(self, version_combo, install_forge, install_fabric):
+    def populate_available_releases(self, version_combo, install_forge, install_fabric, install_quilt):
         try:
             command = "version list --release"
             output = modulecli.run_command(command)
@@ -1799,7 +1809,7 @@ class ModLoaderAndVersionMenu(QDialog):
             logging.error("Error: %s", str(e))
             return
 
-        if install_fabric:
+        if install_fabric or install_quilt:
             releases = [version for version in output.splitlines() if version.startswith("1.") and int(version.split('.')[1]) >= 14]
         elif install_forge:
             releases = [version for version in output.splitlines() if version.startswith("1.") and float(version.split('.')[1]) >= 5]
@@ -1809,8 +1819,8 @@ class ModLoaderAndVersionMenu(QDialog):
         version_combo.clear()
         version_combo.addItems(releases)
 
-    def install_mod_loader(self, version, install_forge, install_fabric):
-        if not install_forge and not install_fabric:
+    def install_mod_loader(self, version, install_forge, install_fabric, install_quilt):
+        if not install_forge and not install_fabric and not install_quilt:
             QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
             return
 
@@ -1819,6 +1829,8 @@ class ModLoaderAndVersionMenu(QDialog):
             mod_loader = 'forge'
         elif install_fabric:
             mod_loader = 'fabric'
+        elif install_quilt:
+            mod_loader = 'quilt'
 
         if not mod_loader:
             QMessageBox.warning(self, "Select Mod Loader", "Please select at least one mod loader.")
@@ -1829,6 +1841,8 @@ class ModLoaderAndVersionMenu(QDialog):
                 command = f"mod loader forge install --game {version}"
             elif mod_loader == 'fabric':
                 command = f"mod loader fabric install {version}"
+            elif mod_loader == 'quilt':
+                command = f"mod loader quilt install {version}"
             modulecli.run_command(command)
             QMessageBox.information(self, "Success", f"{mod_loader.capitalize()} installed successfully for version {version}!")
         except Exception as e:
