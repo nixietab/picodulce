@@ -1402,21 +1402,7 @@ class zucaroVersionSelector(QWidget):
         dialog.finished.connect(self.populate_installed_versions)
         dialog.exec_()
 
-class DownloadThread(QThread):
-    completed = pyqtSignal(bool, str)
 
-    def __init__(self, version):
-        super().__init__()
-        self.version = version
-
-    def run(self):
-        try:
-            command = f"version prepare {self.version}"
-            modulecli.run_command(command)
-            self.completed.emit(True, f"Version {self.version} prepared successfully!")
-        except Exception as e:
-            error_message = f"Error preparing {self.version}: {str(e)}"
-            self.completed.emit(False, error_message)
 
 class ModLoaderAndVersionMenu(QDialog):
     def __init__(self, parent=None):
@@ -1795,39 +1781,12 @@ class ModLoaderAndVersionMenu(QDialog):
     def update_download_button_state(self):
         self.download_button.setEnabled(self.version_combo.currentIndex() != -1)
 
-    def show_popup(self):
-        self.popup = QDialog(self)
-        self.popup.setWindowTitle("Installing Version")
-        layout = QVBoxLayout(self.popup)
-
-        label = QLabel("The version is being installed...")
-        layout.addWidget(label)
-
-        movie = QMovie("drums.gif")
-        gif_label = QLabel()
-        gif_label.setMovie(movie)
-        layout.addWidget(gif_label)
-
-        movie.start()
-        self.popup.setGeometry(200, 200, 300, 200)
-        self.popup.setWindowModality(Qt.ApplicationModal)
-        self.popup.show()
-
     def download_version(self, version):
-        # Show the popup in the main thread
-        self.show_popup()
-
-        self.download_thread = DownloadThread(version)
-        self.download_thread.completed.connect(self.on_download_completed)
-        self.download_thread.start()
-
-    def on_download_completed(self, success, message):
-        self.popup.close()
+        success = loaddaemon.prepare_version_with_window(version, self)
         if success:
-            QMessageBox.information(self, "Success", message)
+            QMessageBox.information(self, "Success", f"Version {version} prepared successfully!")
         else:
-            QMessageBox.critical(self, "Error", message)
-        logging.error(message)
+            QMessageBox.critical(self, "Error", f"Failed to prepare version {version}.")
 
     def populate_available_releases(self, version_combo, install_forge, install_fabric):
         try:
