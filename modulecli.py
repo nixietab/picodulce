@@ -42,5 +42,5 @@ def run_command(command="zucaro"):
     gc.collect()
     
     if not output:
-        return f"Error: No output from command. Stderr: {error}"
+        return None
     return output
