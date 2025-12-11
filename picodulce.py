@@ -1074,11 +1074,11 @@ class zucaroVersionSelector(QWidget):
             logging.error(error_message)
             QMessageBox.critical(dialog, "Error", error_message)
 
-    def _on_auth_finished(self, success):
+    def _on_auth_finished(self, success, message):
         if success:
-            QMessageBox.information(self, "Success", "Account authenticated successfully!")
+            QMessageBox.information(self, "Success", message)
         else:
-            QMessageBox.critical(self, "Error", "Failed to authenticate account")
+            QMessageBox.critical(self, "Error", message)
 
         # Cleanup
         if self.authenticator:

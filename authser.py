@@ -134,6 +134,8 @@ class AuthenticationThread(QThread):
 
                     return j["access_token"], j["refresh_token"]
 
+            raise Exception("Authentication cancelled by user")
+
     async def _xbl_auth(self, access_token):
         data = {
             "Properties": {
@@ -223,13 +225,14 @@ class AuthenticationThread(QThread):
         self.is_running = False
 
 class MinecraftAuthenticator(QObject):
-    auth_finished = pyqtSignal(bool)
+    auth_finished = pyqtSignal(bool, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.auth_thread = None
         self.auth_dialog = None
         self.success = False
+        self.error_message = None
         self.username = None
         
         # Initialize the launcher to get the correct config path
@@ -242,6 +245,12 @@ class MinecraftAuthenticator(QObject):
 
         # Create accounts.json if it doesn't exist
         if not self.save_to_accounts_json():
+            self.auth_finished.emit(False, self.error_message)
+            return
+
+        # Check if account is online
+        if not self.validate_account_type():
+            self.auth_finished.emit(False, "Cannot authenticate an offline account")
             return
 
         self.auth_thread = AuthenticationThread(username)
@@ -263,9 +272,24 @@ class MinecraftAuthenticator(QObject):
             self.auth_thread.stop()
 
     def show_error(self, error_msg):
-        QMessageBox.critical(None, "Error", error_msg)
+        self.error_message = error_msg
         self.success = False
-        self.auth_finished.emit(False)
+
+    def validate_account_type(self):
+        try:
+            accounts_file = Path(self.config_path) / "accounts.json"
+            if accounts_file.exists():
+                with open(accounts_file) as f:
+                    config = json.load(f)
+                    
+                if self.username in config["accounts"]:
+                    return config["accounts"][self.username].get("microsoft", False)
+            
+            return True # New account, will be created as microsoft
+            
+        except Exception as e:
+            logger.error(f"Failed to validate account type: {str(e)}")
+            return False
 
     def save_to_accounts_json(self):
         try:
@@ -305,7 +329,7 @@ class MinecraftAuthenticator(QObject):
 
         except Exception as e:
             logger.error(f"Failed to initialize account data: {str(e)}")
-            QMessageBox.critical(None, "Error", f"Failed to initialize account data: {str(e)}")
+            self.error_message = f"Failed to initialize account data: {str(e)}"
             return False
 
     def on_access_token_received(self, data):
@@ -328,17 +352,15 @@ class MinecraftAuthenticator(QObject):
                     json.dump(config, f, indent=4)
                 
                 self.success = True
-                QMessageBox.information(None, "Success", 
-                                      f"Successfully authenticated account: {self.username}")
             else:
                 raise Exception("Account not found in configuration")
                 
         except Exception as e:
             logger.error(f"Failed to update account data: {str(e)}")
-            QMessageBox.critical(None, "Error", f"Failed to update account data: {str(e)}")
+            self.error_message = f"Failed to update account data: {str(e)}"
             self.success = False
             
-        self.auth_finished.emit(self.success)
+        # We don't emit here, we wait for the thread to finish
 
     def on_authentication_finished(self):
         if self.auth_dialog is not None:
@@ -350,7 +372,9 @@ class MinecraftAuthenticator(QObject):
             self.auth_thread = None
             
         if not self.success:
-            self.auth_finished.emit(False)
+            self.auth_finished.emit(False, self.error_message)
+        else:
+            self.auth_finished.emit(True, f"Successfully authenticated account: {self.username}")
 
     def cleanup(self):
         if self.auth_dialog is not None:
