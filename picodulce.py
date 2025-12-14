@@ -1178,9 +1178,12 @@ class zucaroVersionSelector(QWidget):
         total_playtime = round(total_playtime)
         #returs the playtime and the unit used to measure in a string
         return(f"{total_playtime} {playtime_unit}")
-
+        
     def show_about_dialog(self):
-        # Load the version number from version.json
+        import json
+        from PyQt5.QtWidgets import QMessageBox
+        from PyQt5.QtCore import Qt
+
         try:
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
@@ -1190,30 +1193,39 @@ class zucaroVersionSelector(QWidget):
             version_number = 'unknown version'
             version_bleeding = None
 
-        # Check the configuration for IsBleeding
         try:
             with open('config.json', 'r') as config_file:
                 config_data = json.load(config_file)
                 is_bleeding = config_data.get('IsBleeding', False)
         except (FileNotFoundError, json.JSONDecodeError):
+            config_data = {}
             is_bleeding = False
 
-        # Use versionBleeding if IsBleeding is true
         if is_bleeding and version_bleeding:
             version_number = version_bleeding
 
+        about_message = f"""
+        <b>PicoDulce Launcher</b><br>
+        <b>Version:</b> {version_number}<br><br>
 
+        A simple Minecraft launcher built using Qt, based on the
+        <a href="https://github.com/nixietab/zucaro">zucaro backend</a>.<br><br>
 
-        about_message = (
-            f"PicoDulce Launcher (v{version_number})\n\n"
-            "A simple Minecraft launcher built using Qt, based on the zucaro backend.\n\n"
-            "Credits:\n"
-            "Nixietab: Code and UI design\n"
-            "Wabaano: Graphic design\n"
-            "Olinad: Christmas!!!!\n\n"
-            f"Playtime:  {self.get_playtime(config_data)}"
-        )
-        QMessageBox.about(self, "About", about_message)
+        <b>Credits:</b><br>
+        Nixietab: Code and UI design<br>
+        Wabaano: Branding design<br><br>
+
+        <b>Playtime:</b> {self.get_playtime(config_data)}
+        """
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("About")
+        msg.setIconPixmap(self.windowIcon().pixmap(64, 64))
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(about_message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
 
     def check_for_update_start(self):
         try:
