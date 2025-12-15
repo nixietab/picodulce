@@ -16,7 +16,7 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu, QRadioButton
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu, QRadioButton, QProgressDialog
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
@@ -316,14 +316,9 @@ class zucaroVersionSelector(QWidget):
         check_updates_checkbox = QCheckBox('Check Updates on Start')
         check_updates_checkbox.setChecked(self.config.get("CheckUpdate", False))
 
-        bleeding_edge_checkbox = QCheckBox('Bleeding Edge')
-        bleeding_edge_checkbox.setChecked(self.config.get("IsBleeding", False))
-        bleeding_edge_checkbox.stateChanged.connect(lambda: self.show_bleeding_edge_popup(bleeding_edge_checkbox))
-
         settings_layout.addWidget(title_label)
         settings_layout.addWidget(discord_rcp_checkbox)
         settings_layout.addWidget(check_updates_checkbox)
-        settings_layout.addWidget(bleeding_edge_checkbox)
 
         update_button = QPushButton('Check for updates')
         update_button.clicked.connect(self.check_for_update)
@@ -442,7 +437,6 @@ class zucaroVersionSelector(QWidget):
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
                 self.selected_theme,
-                bleeding_edge_checkbox.isChecked(),
                 java_path_input.text(),
                 ram_selector.text(),
                 manage_java_checkbox.isChecked()
@@ -461,18 +455,6 @@ class zucaroVersionSelector(QWidget):
         if path:
             java_path_input.setText(path)
 
-
-
-    def show_bleeding_edge_popup(self, checkbox):
-        if checkbox.isChecked():
-            response = QMessageBox.question(
-                self,
-                "Bleeding Edge Feature",
-                "Enabling 'Bleeding Edge' mode may expose you to unstable and experimental features. Do you want to enable it anyway? In normal mode, updates are only downloaded when a stable release is made.",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if response == QMessageBox.No:
-                checkbox.setChecked(False)
 
     def build_themes_list(self):
         themes_folder = os.path.join(os.getcwd(), "themes")
@@ -501,14 +483,12 @@ class zucaroVersionSelector(QWidget):
             list_item = QListWidgetItem(display_text)
             list_item.setData(Qt.UserRole, json_file)  # Store the JSON filename as metadata
 
-            # Style the name in bold
             font = QFont()
             font.setBold(False)
             list_item.setFont(font)
 
             json_files_list_widget.addItem(list_item)
 
-        # Apply spacing and styling to the list
         json_files_list_widget.setStyleSheet("""
             QListWidget {
                 padding: 1px;
@@ -697,7 +677,6 @@ class zucaroVersionSelector(QWidget):
         check_updates_on_start,
         theme_background,
         selected_theme,
-        is_bleeding,
         java_path,
         ram_allocation,
         manage_java_enabled
@@ -708,7 +687,6 @@ class zucaroVersionSelector(QWidget):
             "CheckUpdate": check_updates_on_start,
             "ThemeBackground": theme_background,
             "Theme": selected_theme,
-            "IsBleeding": is_bleeding,
             "ManageJava": manage_java_enabled,
             "MaxRAM": ram_allocation,
             "JavaPath": java_path,
@@ -1188,21 +1166,14 @@ class zucaroVersionSelector(QWidget):
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
                 version_number = version_data.get('version', 'unknown version')
-                version_bleeding = version_data.get('versionBleeding', None)
         except (FileNotFoundError, json.JSONDecodeError):
             version_number = 'unknown version'
-            version_bleeding = None
 
         try:
             with open('config.json', 'r') as config_file:
                 config_data = json.load(config_file)
-                is_bleeding = config_data.get('IsBleeding', False)
         except (FileNotFoundError, json.JSONDecodeError):
             config_data = {}
-            is_bleeding = False
-
-        if is_bleeding and version_bleeding:
-            version_number = version_bleeding
 
         about_message = f"""
         <b>PicoDulce Launcher</b><br>
@@ -1232,33 +1203,13 @@ class zucaroVersionSelector(QWidget):
             with open("version.json") as f:
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
-                local_version_bleeding = local_version_info.get("versionBleeding")
-                logging.info(f"Local version: {local_version}")
-                logging.info(f"Local bleeding version: {local_version_bleeding}")
-
-                with open("config.json") as config_file:
-                    config = json.load(config_file)
-                    is_bleeding = config.get("IsBleeding", False)
-
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
-                    remote_version_bleeding = remote_version_info.get("versionBleeding")
                     logging.info(f"Remote version: {remote_version}")
-                    logging.info(f"Remote bleeding version: {remote_version_bleeding}")
 
-                    if is_bleeding:
-                        remote_version_to_check = remote_version_bleeding
-                        local_version_to_check = local_version_bleeding
-                    else:
-                        remote_version_to_check = remote_version
-                        local_version_to_check = local_version
-                    
-                    if remote_version_to_check and (remote_version_to_check != local_version_to_check):
-                        if is_bleeding:
-                            update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
-                        else:
-                            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                    if remote_version and (remote_version != local_version):
+                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
@@ -1277,33 +1228,13 @@ class zucaroVersionSelector(QWidget):
             with open("version.json") as f:
                 local_version_info = json.load(f)
                 local_version = local_version_info.get("version")
-                local_version_bleeding = local_version_info.get("versionBleeding")
-                logging.info(f"Local version: {local_version}")
-                logging.info(f"Local bleeding version: {local_version_bleeding}")
-
-                with open("config.json") as config_file:
-                    config = json.load(config_file)
-                    is_bleeding = config.get("IsBleeding", False)
-
                 if local_version:
                     remote_version_info = self.fetch_remote_version()
                     remote_version = remote_version_info.get("version")
-                    remote_version_bleeding = remote_version_info.get("versionBleeding")
                     logging.info(f"Remote version: {remote_version}")
-                    logging.info(f"Remote bleeding version: {remote_version_bleeding}")
 
-                    if is_bleeding:
-                        remote_version_to_check = remote_version_bleeding
-                        local_version_to_check = local_version_bleeding
-                    else:
-                        remote_version_to_check = remote_version
-                        local_version_to_check = local_version
-                    
-                    if remote_version_to_check and (remote_version_to_check != local_version_to_check):
-                        if is_bleeding:
-                            update_message = f"Do you want to update to the bleeding edge version ({remote_version_bleeding})?"
-                        else:
-                            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+                    if remote_version and (remote_version != local_version):
+                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
                         update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                         if update_dialog == QMessageBox.Yes:
                             # Download and apply the update
@@ -1336,26 +1267,89 @@ class zucaroVersionSelector(QWidget):
             update_folder = "update"
             if not os.path.exists(update_folder):
                 os.makedirs(update_folder)
-            for link in version_info.get("links", []):
+            
+            links = version_info.get("links", [])
+            total_files = len(links)
+            
+            # Create progress dialog
+            progress = QProgressDialog("Downloading updates...", "Cancel", 0, 100, self)
+            progress.setWindowTitle("Update Progress")
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+            
+            canceled = False
+            for i, link in enumerate(links):
+                if progress.wasCanceled():
+                    canceled = True
+                    break
+                    
                 filename = os.path.basename(link)
-                response = requests.get(link, stream=True)
-                if response.status_code == 200:
+                try:
+                    response = requests.get(link, stream=True)
+                    response.raise_for_status()
+                    
+                    total_length = response.headers.get('content-length')
+                    
                     with open(os.path.join(update_folder, filename), 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=1024):
-                            f.write(chunk)
-                else:
-                    QMessageBox.critical(self, "Error", f"Failed to download update file: {filename}")
+                        if total_length is None: # no content length header
+                            f.write(response.content)
+                        else:
+                            dl = 0
+                            total_length = int(total_length)
+                            for chunk in response.iter_content(chunk_size=4096):
+                                if progress.wasCanceled():
+                                    canceled = True
+                                    break
+                                dl += len(chunk)
+                                f.write(chunk)
+                                # Calculate progress for current file and overall
+                                current_file_progress = (dl / total_length) * 100
+                                overall_progress = (i / total_files * 100) + (current_file_progress / total_files)
+                                progress.setValue(int(overall_progress))
+                                QApplication.processEvents()
+                        
+                        if canceled:
+                            break
+
+                except requests.exceptions.ConnectionError:
+                    progress.close()
+                    logging.error(f"Connection error downloading {filename}")
+                    QMessageBox.critical(self, "Connection Error", "Failed to connect to the update server.\nPlease check your internet connection.")
+                    return
+                except Exception as e:
+                    progress.close()
+                    logging.error(f"Error downloading {filename}: {e}")
+                    QMessageBox.critical(self, "Error", f"Failed to download update file: {filename}\n{e}")
+                    return
+
+            progress.setValue(100)
+            progress.close()
             
-            # Move downloaded files one directory up
-            for file in os.listdir(update_folder):
-                src = os.path.join(update_folder, file)
-                dst = os.path.join(os.path.dirname(update_folder), file)
-                shutil.move(src, dst)
-            
-            # Remove the update folder
-            shutil.rmtree(update_folder)
-            
-            QMessageBox.information(self, "Update", "Updates downloaded successfully.")
+            if not canceled:
+                # Move downloaded files one directory up
+                for file in os.listdir(update_folder):
+                    src = os.path.join(update_folder, file)
+                    dst = os.path.join(os.path.dirname(update_folder), file)
+                    shutil.move(src, dst)
+                
+                # Remove the update folder
+                shutil.rmtree(update_folder)
+                
+                # Update zucaro via pip
+                try:
+                    import subprocess
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "zucaro"])
+                    logging.info("Successfully updated zucaro via pip.")
+                except Exception as e:
+                    logging.error(f"Failed to update zucaro: {e}")
+                    QMessageBox.warning(self, "Warning", f"Failed to update zucaro backend: {e}")
+
+                QMessageBox.information(self, "Update", "Updates downloaded successfully.")
+            else:
+                 # Cleanup if canceled
+                shutil.rmtree(update_folder)
+                QMessageBox.information(self, "Update Canceled", "Update download was canceled.")
+
         except Exception as e:
             logging.error("Error downloading updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to download updates.")
