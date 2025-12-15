@@ -252,9 +252,9 @@ class ModManagerWindow(QMainWindow):
 
     def load_installed_mods(self, file_type):
         if sys.platform.startswith('linux'):
-            minecraft_directory = os.path.expanduser("~/.local/share/picomc/instances/default/minecraft")
+            minecraft_directory = os.path.expanduser("~/.local/share/zucaro/instances/default/minecraft")
         elif sys.platform.startswith('win'):
-            minecraft_directory = os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft')
+            minecraft_directory = os.path.join(os.getenv('APPDATA'), '.zucaro/instances/default/minecraft')
         else:
             minecraft_directory = ""
         if minecraft_directory:
@@ -320,14 +320,14 @@ class ModManagerWindow(QMainWindow):
         file_type = self.file_type_combo_box.currentText()
         if file_type == "Mods":
             if sys.platform.startswith('linux'):
-                return os.path.expanduser("~/.local/share/picomc/instances/default/minecraft/mods")
+                return os.path.expanduser("~/.local/share/zucaro/instances/default/minecraft/mods")
             elif sys.platform.startswith('win'):
-                return os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft/mods')
+                return os.path.join(os.getenv('APPDATA'), '.zucaro/instances/default/minecraft/mods')
         elif file_type == "Resource Packs":
             if sys.platform.startswith('linux'):
-                return os.path.expanduser("~/.local/share/picomc/instances/default/minecraft/resourcepacks")
+                return os.path.expanduser("~/.local/share/zucaro/instances/default/minecraft/resourcepacks")
             elif sys.platform.startswith('win'):
-                return os.path.join(os.getenv('APPDATA'), '.picomc/instances/default/minecraft/resourcepacks')
+                return os.path.join(os.getenv('APPDATA'), '.zucaro/instances/default/minecraft/resourcepacks')
         else:
             return ""
 
