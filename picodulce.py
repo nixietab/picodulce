@@ -16,8 +16,8 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidget, QListWidgetItem, QMenu, QRadioButton, QProgressDialog
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush, QKeySequence
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
 from datetime import datetime
 
@@ -64,6 +64,9 @@ class zucaroVersionSelector(QWidget):
 
         self.authenticator = MinecraftAuthenticator(self)
         self.authenticator.auth_finished.connect(self._on_auth_finished)
+
+        # Set up keyboard shortcuts
+        self.setup_shortcuts()
 
 
     def load_theme_from_file(self, file_path, app):
@@ -281,6 +284,61 @@ class zucaroVersionSelector(QWidget):
         main_layout.setSpacing(20)
 
         self.setLayout(main_layout)
+
+    def setup_shortcuts(self):
+        """Set up keyboard shortcuts for the main window."""
+        # Screenshots folder
+        QShortcut(QKeySequence("Ctrl+A"), self, self.open_screenshots_folder)
+        
+        # Play instance
+        QShortcut(QKeySequence("Ctrl+P"), self, self.play_instance)
+        
+        # Open dialogs
+        QShortcut(QKeySequence("Ctrl+M"), self, self.open_mod_loader_and_version_menu)
+        QShortcut(QKeySequence("Ctrl+O"), self, self.open_marroc_script)
+        QShortcut(QKeySequence("Ctrl+S"), self, self.open_settings_dialog)
+        QShortcut(QKeySequence("Ctrl+,"), self, self.open_settings_dialog)
+        QShortcut(QKeySequence("Ctrl+I"), self, self.show_about_dialog)
+        
+        # Refresh
+        QShortcut(QKeySequence("Ctrl+R"), self, self.populate_installed_versions)
+        QShortcut(QKeySequence("F5"), self, self.populate_installed_versions)
+        
+        # Quit
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+
+    def open_screenshots_folder(self):
+        """Open the screenshots folder for the selected instance."""
+        try:
+            # Get the instance name from config
+            instance_name = self.config.get("Instance", "default")
+            
+            # Get instance directory
+            command = f"instance dir {instance_name}"
+            result = modulecli.run_command(command)
+            if not result:
+                # Fallback to local path if zucaro is not behaving
+                if sys.platform.startswith('linux'):
+                    instance_dir = os.path.expanduser(f"~/.local/share/zucaro/instances/{instance_name}")
+                elif sys.platform.startswith('win'):
+                    instance_dir = os.path.join(os.getenv('APPDATA'), f'.zucaro/instances/{instance_name}')
+                else:
+                    QMessageBox.warning(self, "Error", "Could not retrieve instance directory.")
+                    return
+            else:
+                instance_dir = result.strip()
+            
+            screenshots_dir = os.path.join(instance_dir, "minecraft", "screenshots")
+            
+            # Create directory if it doesn't exist
+            if not os.path.exists(screenshots_dir):
+                os.makedirs(screenshots_dir, exist_ok=True)
+            
+            # Open in file explorer
+            QDesktopServices.openUrl(QUrl.fromLocalFile(screenshots_dir))
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open screenshots folder: {e}")
     
     def keyPressEvent(self, event):
         focus_widget = self.focusWidget()
@@ -448,6 +506,26 @@ class zucaroVersionSelector(QWidget):
         main_layout.addWidget(save_button)
 
         dialog.setLayout(main_layout)
+
+        # Add shortcuts to the dialog
+        QShortcut(QKeySequence("Ctrl+S"), dialog, lambda: self.save_settings(
+            discord_rcp_checkbox.isChecked(),
+            check_updates_checkbox.isChecked(),
+            theme_background_checkbox.isChecked(),
+            self.selected_theme,
+            java_path_input.text(),
+            ram_selector.text(),
+            manage_java_checkbox.isChecked()
+        ))
+        QShortcut(QKeySequence("Ctrl+W"), dialog, dialog.reject)
+        QShortcut(QKeySequence("Escape"), dialog, dialog.reject)
+
+        # Tab navigation
+        QShortcut(QKeySequence("Ctrl+Tab"), dialog, 
+                  lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() + 1) % tab_widget.count()))
+        QShortcut(QKeySequence("Ctrl+Shift+Tab"), dialog, 
+                  lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() - 1) % tab_widget.count()))
+
         dialog.exec_()
 
     def browse_java_path(self, java_path_input):
@@ -743,8 +821,11 @@ class zucaroVersionSelector(QWidget):
 
     def open_game_directory(self):
         try:
+            # Get the instance name from config
+            instance_name = self.config.get("Instance", "default")
+
             # Run the command using modulecli
-            command = "instance dir"
+            command = f"instance dir {instance_name}"
             result = modulecli.run_command(command)
             if not result:
                 print("Error: Could not retrieve game directory")
@@ -1423,6 +1504,10 @@ class ModLoaderAndVersionMenu(QDialog):
         else:
             self.setGeometry(100, 100, 400, 300)
 
+        # Global shortcuts for this modal dialog
+        QShortcut(QKeySequence("Ctrl+W"), self, self.close)
+        QShortcut(QKeySequence("Escape"), self, self.close)
+
         main_layout = QVBoxLayout(self)
 
         tab_widget = QTabWidget()
@@ -1491,6 +1576,22 @@ class ModLoaderAndVersionMenu(QDialog):
         create_layout.addWidget(create_instance_button)
         
         layout.addLayout(create_layout)
+
+        # Shortcuts for Instances tab
+        QShortcut(QKeySequence("Ctrl+N"), instances_tab, self.create_instance)
+        
+        def context_menu_on_selected():
+            item = self.instances_list_widget.currentItem()
+            if item:
+                self.show_instance_context_menu(self.instances_list_widget.visualItemRect(item).center())
+        
+        QShortcut(QKeySequence("F2"), instances_tab, lambda: self.prompt_rename_instance(
+            self.instances_list_widget.currentItem().text().replace("★ ", "").strip() if self.instances_list_widget.currentItem() else ""
+        ) if self.instances_list_widget.currentItem() else None)
+        
+        QShortcut(QKeySequence("Delete"), instances_tab, lambda: self.delete_instance(
+            self.instances_list_widget.currentItem().text().replace("★ ", "").strip() if self.instances_list_widget.currentItem() else ""
+        ) if self.instances_list_widget.currentItem() else None)
 
         self.load_instances()
         self.instances_list_widget.itemClicked.connect(self.on_instance_selected)
@@ -1723,6 +1824,14 @@ class ModLoaderAndVersionMenu(QDialog):
         ))
         layout.addWidget(install_button)
 
+        # Shortcut for Install Mod Loader
+        QShortcut(QKeySequence("Ctrl+I"), install_mod_tab, lambda: self.install_mod_loader(
+            self.version_combo_mod.currentText(), 
+            self.forge_checkbox.isChecked(), 
+            self.fabric_checkbox.isChecked(),
+            self.quilt_checkbox.isChecked()
+        ))
+
     def setup_download_version_tab(self, download_version_tab):
         layout = QVBoxLayout(download_version_tab)
 
@@ -1787,6 +1896,9 @@ class ModLoaderAndVersionMenu(QDialog):
         self.download_button.setEnabled(False)  # Initially disabled
         self.download_button.clicked.connect(lambda: self.download_version(self.version_combo.currentText()))
         layout.addWidget(self.download_button)
+
+        # Shortcut for Download Version
+        QShortcut(QKeySequence("Ctrl+D"), download_version_tab, lambda: self.download_version(self.version_combo.currentText()))
 
         # Connect the combo box signal to the update function
         self.version_combo.currentIndexChanged.connect(self.update_download_button_state)
