@@ -18,13 +18,45 @@ import loaddaemon
 
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush, QKeySequence
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTimer
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
 
+class UpdateWorker(QThread):
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
+            response = requests.get(update_url, timeout=10)
+            if response.status_code == 200:
+                self.finished.emit(response.json())
+            else:
+                self.error.emit(f"Failed to fetch update information (Status: {response.status_code})")
+        except Exception as e:
+            self.error.emit(str(e))
+
+class ThemeWorker(QThread):
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            self.finished.emit(response.json())
+        except Exception as e:
+            self.error.emit(str(e))
+
 class zucaroVersionSelector(QWidget):
     def __init__(self):
+        super().__init__()
         self.current_state = "menu"
         self.open_dialogs = []
 
@@ -37,27 +69,17 @@ class zucaroVersionSelector(QWidget):
 
         themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
-
-        # Ensure the theme file exists in the themes directory
         theme_file_path = os.path.join(themes_folder, theme_file)
 
-        try:
-            # Load and apply the theme from the file
-            self.load_theme_from_file(theme_file_path, app)
-            print(f"Theme '{theme_file}' loaded successfully.")
-        except Exception as e:
-            print(f"Error: Could not load theme '{theme_file}'. Falling back to default theme. {e}")
-
-        super().__init__()
+        # Load and apply primary theme
+        self.load_theme_from_file(theme_file_path)
+        
         self.init_ui()
 
         if self.config.get("CheckUpdate", False):
             self.check_for_update_start()
 
-        if self.config.get("IsRCPenabled", False):
-            discord_rcp_thread = Thread(target=self.start_discord_rcp)
-            discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
-            discord_rcp_thread.start()
+        self.start_discord_rcp_thread()
 
         if self.config.get("IsFirstLaunch", False):
             self.FirstLaunch()
@@ -68,8 +90,16 @@ class zucaroVersionSelector(QWidget):
         # Set up keyboard shortcuts
         self.setup_shortcuts()
 
+        # Pre-fetch themes in background
+        self.cached_themes = None
+        self.is_fetching_themes = False
+        self.fetch_themes_async()
 
-    def load_theme_from_file(self, file_path, app):
+
+    def load_theme_from_file(self, file_path, app=None):
+        if app is None:
+            app = QApplication.instance()
+            
         self.theme = {}
         # Check if the file exists, else load 'Dark.json'
         if not os.path.exists(file_path):
@@ -78,55 +108,61 @@ class zucaroVersionSelector(QWidget):
 
             # Ensure the fallback file exists
             if not os.path.exists(file_path):
-                raise FileNotFoundError(f"Default theme file '{file_path}' not found.")
+                print(f"Warning: Default theme file '{file_path}' not found.")
+                return
 
-        # Open and parse the JSON file
-        with open(file_path, "r") as file:
-            self.theme = json.load(file)  # Store theme as a class attribute
+        try:
+            # Open and parse the JSON file
+            with open(file_path, "r") as file:
+                self.theme = json.load(file)  # Store theme as a class attribute
 
-        # Ensure the required keys exist
-        if "palette" not in self.theme:
-            raise ValueError("JSON theme must contain a 'palette' section.")
+            # Ensure the required keys exist
+            if "palette" not in self.theme:
+                raise ValueError("JSON theme must contain a 'palette' section.")
 
-        # Extract the palette
-        palette_config = self.theme["palette"]
+            # Extract the palette
+            palette_config = self.theme["palette"]
 
-        # Create a new QPalette
-        palette = QPalette()
+            # Create a new QPalette
+            palette = QPalette()
 
-        # Map palette roles to PyQt5 palette roles
-        role_map = {
-            "Window": QPalette.Window,
-            "WindowText": QPalette.WindowText,
-            "Base": QPalette.Base,
-            "AlternateBase": QPalette.AlternateBase,
-            "ToolTipBase": QPalette.ToolTipBase,
-            "ToolTipText": QPalette.ToolTipText,
-            "Text": QPalette.Text,
-            "Button": QPalette.Button,
-            "ButtonText": QPalette.ButtonText,
-            "BrightText": QPalette.BrightText,
-            "Link": QPalette.Link,
-            "Highlight": QPalette.Highlight,
-            "HighlightedText": QPalette.HighlightedText,
-        }
+            # Map palette roles to PyQt5 palette roles
+            role_map = {
+                "Window": QPalette.Window,
+                "WindowText": QPalette.WindowText,
+                "Base": QPalette.Base,
+                "AlternateBase": QPalette.AlternateBase,
+                "ToolTipBase": QPalette.ToolTipBase,
+                "ToolTipText": QPalette.ToolTipText,
+                "Text": QPalette.Text,
+                "Button": QPalette.Button,
+                "ButtonText": QPalette.ButtonText,
+                "BrightText": QPalette.BrightText,
+                "Link": QPalette.Link,
+                "Highlight": QPalette.Highlight,
+                "HighlightedText": QPalette.HighlightedText,
+            }
 
-        # Apply colors from the palette config
-        for role_name, color_code in palette_config.items():
-            if role_name in role_map:
-                palette.setColor(role_map[role_name], QColor(color_code))
+            # Apply colors from the palette config
+            for role_name, color_code in palette_config.items():
+                if role_name in role_map:
+                    palette.setColor(role_map[role_name], QColor(color_code))
+                else:
+                    print(f"Warning: '{role_name}' is not a recognized palette role.")
+            
+            # Apply the palette to the application
+            app.setPalette(palette)
+
+            # Apply style sheet if present
+            if "stylesheet" in self.theme:
+                stylesheet = self.theme["stylesheet"]
+                app.setStyleSheet(stylesheet)
             else:
-                print(f"Warning: '{role_name}' is not a recognized palette role.")
-        
-        # Apply the palette to the application
-        app.setPalette(palette)
-
-        # Apply style sheet if present
-        if "stylesheet" in self.theme:
-            stylesheet = self.theme["stylesheet"]
-            app.setStyleSheet(stylesheet)
-        else:
-            print("Theme dosn't seem to have a stylesheet")
+                # Clear stylesheet if not present in new theme
+                app.setStyleSheet("")
+                print("Theme doesn't seem to have a stylesheet")
+        except Exception as e:
+            print(f"Error applying theme: {e}")
 
     def FirstLaunch(self):
         try:
@@ -154,54 +190,67 @@ class zucaroVersionSelector(QWidget):
             print("An error occurred while creating the instance.")
             print("Error output:", str(e))
 
-    def resize_event(self, event):
+    def resizeEvent(self, event):
         if hasattr(self, 'movie_label'):
-            self.movie_label.setGeometry(0, 0, 400, 320)
-        event.accept()  # Accept the resize event
+            self.movie_label.setGeometry(0, 0, self.width(), self.height())
+        super().resizeEvent(event)
 
     def load_theme_background(self):
         """Load and set the theme background image from base64 data in the theme configuration."""
-        if not self.config.get("ThemeBackground", False):  # Default to False if ThemeBackground is missing
+        # Remove existing background label if it exists
+        if hasattr(self, 'movie_label'):
+            self.movie_label.setParent(None)
+            self.movie_label.deleteLater()
+            delattr(self, 'movie_label')
+
+        # We always want autofill to use the palette color even if no image is used
+        self.setAutoFillBackground(True)
+
+        if not self.config.get("ThemeBackground", False):
             return
 
         # Get the base64 string for the background image from the theme file
         theme_background_base64 = self.theme.get("background_image_base64", "")
         if not theme_background_base64:
-            print("No background GIF base64 string found in the theme file.")
+            print("No background GIF base64 string found in the theme file. Using palette color.")
             return
 
         try:
             # Decode the base64 string to get the binary data
             background_image_data = QByteArray.fromBase64(theme_background_base64.encode())
-            temp_gif_path = "temp.gif"  # Write the gif into a temp file because Qt stuff
+            temp_gif_path = "temp.gif"
             with open(temp_gif_path, 'wb') as temp_gif_file:
                 temp_gif_file.write(background_image_data)
 
             # Create a QMovie object from the temporary file
             movie = QMovie(temp_gif_path)
             if movie.isValid():
-                self.setAutoFillBackground(True)
-                palette = self.palette()
-
-                # Set the QMovie to a QLabel
+                # Create the label for the background
                 self.movie_label = QLabel(self)
                 self.movie_label.setMovie(movie)
-                self.movie_label.setGeometry(0, 0, movie.frameRect().width(), movie.frameRect().height())
-                self.movie_label.setScaledContents(True)  # Ensure the QLabel scales its contents
+                self.movie_label.setGeometry(0, 0, self.width(), self.height())
+                self.movie_label.setScaledContents(True)
+                self.movie_label.setAttribute(Qt.WA_TransparentForMouseEvents) # Don't block clicks
+                self.movie_label.lower()  # Send to background
+                self.movie_label.show()
                 movie.start()
-
-                # Use the QLabel pixmap as the brush texture
-                brush = QBrush(QPixmap(movie.currentPixmap()))
-                brush.setStyle(Qt.TexturePattern)
-                palette.setBrush(QPalette.Window, brush)
-                self.setPalette(palette)
-
-                # Adjust the QLabel size when the window is resized
-                self.movie_label.resizeEvent = self.resize_event
             else:
                 print("Error: Failed to load background GIF from base64 string.")
         except Exception as e:
             print(f"Error: Failed to decode and set background GIF. {e}")
+
+    def refresh_styles(self):
+        """Refreshes the styles of UI components based on the current theme."""
+        # Update background
+        self.load_theme_background()
+        
+        # Update accent colors for buttons
+        highlight_color = self.palette().color(QPalette.Highlight)
+        if hasattr(self, 'play_button'):
+            self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
+        
+        # You can add other style refreshes here if needed
+        self.update() # Force repaint
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
@@ -630,24 +679,46 @@ class zucaroVersionSelector(QWidget):
         themes_list = self.build_themes_list()
         self.populate_themes(self.json_files_list_widget, themes_list)
 
+    def fetch_themes_async(self, callback=None):
+        if self.is_fetching_themes:
+            return
+        
+        url = self.config.get("ThemeRepository")
+        if not url:
+            logging.error("ThemeRepository is not defined in config.json")
+            return
+
+        self.is_fetching_themes = True
+        self.theme_worker = ThemeWorker(url)
+        self.theme_worker.finished.connect(lambda data: self._on_themes_fetched(data, callback))
+        self.theme_worker.error.connect(self._on_themes_error)
+        self.theme_worker.start()
+
+    def _on_themes_fetched(self, data, callback=None):
+        self.is_fetching_themes = False
+        self.cached_themes = data
+        if callback:
+            callback(data)
+
+    def _on_themes_error(self, error_msg):
+        self.is_fetching_themes = False
+        logging.error(f"Error fetching themes: {error_msg}")
+
     def fetch_themes(self):
+        # Synchronous fallback if needed, but we should prefer cached themes
+        if self.cached_themes:
+            return self.cached_themes
+        
         try:
-            with open("config.json", "r") as config_file:
-                config = json.load(config_file)
-            url = config.get("ThemeRepository")
+            url = self.config.get("ThemeRepository")
             if not url:
                 raise ValueError("ThemeRepository is not defined in config.json")
-            response = requests.get(url)
+            response = requests.get(url, timeout=5)
             response.raise_for_status()
-            return response.json()
-        except (FileNotFoundError, json.JSONDecodeError) as config_error:
-            self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
-            return {}
-        except requests.exceptions.RequestException as fetch_error:
-            self.show_error_popup("Error fetching themes", f"An error occurred while fetching themes: {fetch_error}")
-            return {}
-        except ValueError as value_error:
-            self.show_error_popup("Configuration Error", str(value_error))
+            self.cached_themes = response.json()
+            return self.cached_themes
+        except Exception as e:
+            logging.error(f"Sync fetch_themes failed: {e}")
             return {}
 
     def download_theme_json(self, theme_url, theme_name):
@@ -760,6 +831,12 @@ class zucaroVersionSelector(QWidget):
         manage_java_enabled
     ):
         config_path = "config.json"
+        
+        # Capture old settings to see what changed
+        old_theme = self.config.get("Theme")
+        old_background = self.config.get("ThemeBackground")
+        old_rcp = self.config.get("IsRCPenabled")
+
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
@@ -770,17 +847,39 @@ class zucaroVersionSelector(QWidget):
             "JavaPath": java_path,
         }
 
+        self.sync_config()
         self.config.update(updated_config)
 
-        with open(config_path, "w") as config_file:
-            json.dump(self.config, config_file, indent=4)
+        try:
+            with open(config_path, "w") as config_file:
+                json.dump(self.config, config_file, indent=4)
+            
+            # Apply changes live
+            if selected_theme != old_theme or theme_background != old_background:
+                theme_file_path = os.path.join("themes", selected_theme)
+                self.load_theme_from_file(theme_file_path)
+                self.refresh_styles()
+            
+            if is_rcp_enabled != old_rcp:
+                if is_rcp_enabled:
+                    self.start_discord_rcp_thread()
+                else:
+                    pass
 
-        QMessageBox.information(
-            self, 
-            "Settings Saved", 
-            "Settings saved successfully!\n\nTo apply the changes, please restart the launcher."
-        )
-        self.__init__()
+            QMessageBox.information(
+                self, 
+                "Settings Saved", 
+                "Settings saved successfully!"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+
+    def start_discord_rcp_thread(self):
+        if self.config.get("IsRCPenabled", False):
+            discord_rcp_thread = Thread(target=self.start_discord_rcp)
+            discord_rcp_thread.daemon = True
+            discord_rcp_thread.start()
+            print("Discord RPC thread started.")
 
     def get_system_info(self):
         # Get system information
@@ -990,15 +1089,32 @@ class zucaroVersionSelector(QWidget):
             self.current_state = "menu"
             self.update_total_playtime(self.start_time)
 
+    def sync_config(self):
+        """Reloads config from disk and merges with current memory state to avoid data loss."""
+        config_path = "config.json"
+        if not os.path.exists(config_path):
+            return
+
+        try:
+            with open(config_path, "r") as f:
+                disk_config = json.load(f)
+
+            disk_config.update(self.config)
+            self.config = disk_config
+        except Exception as e:
+            print(f"Warning: Failed to sync config from disk: {e}")
+
     def update_last_played(self, selected_instance):
+        self.sync_config()
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
     def update_total_playtime(self, start_time):
+        self.sync_config()
         config_path = "config.json"
-        self.config["TotalPlaytime"] += time.time() - self.start_time
+        self.config["TotalPlaytime"] += (time.time() - start_time)
         print("TOTAL PLAYTIME:" + str(self.config["TotalPlaytime"]))
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
@@ -1016,7 +1132,7 @@ class zucaroVersionSelector(QWidget):
         # Title
         title_label = QLabel('Manage Accounts')
         title_label.setFont(QFont("Arial", 14))
-        title_label.setAlignment(Qt.AlignCenter)  # Center the text
+        title_label.setAlignment(Qt.AlignCenter)
         # Dropdown for selecting accounts
         account_combo = QComboBox()
         self.populate_accounts(account_combo)
@@ -1033,10 +1149,9 @@ class zucaroVersionSelector(QWidget):
 
         # New button to set the account idk
         set_default_button = QPushButton('Select')
-        set_default_button.setFixedWidth(100)  # Set button width to a quarter
+        set_default_button.setFixedWidth(100)
         set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
 
-        # Layout for account selection (dropdown and set default button)
         account_layout = QHBoxLayout()
         account_layout.addWidget(account_combo)
         account_layout.addWidget(set_default_button)
@@ -1283,45 +1398,36 @@ class zucaroVersionSelector(QWidget):
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
-                local_version = local_version_info.get("version")
-                if local_version:
-                    remote_version_info = self.fetch_remote_version()
-                    remote_version = remote_version_info.get("version")
-                    logging.info(f"Remote version: {remote_version}")
-
-                    if remote_version and (remote_version != local_version):
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                        if update_dialog == QMessageBox.Yes:
-                            # Download and apply the update
-                            self.download_update(remote_version_info)
-                    else:
-                        print(f"You already have the latest version!")
+                self.local_version = local_version_info.get("version")
+                if self.local_version:
+                    self.update_worker = UpdateWorker()
+                    self.update_worker.finished.connect(self._on_update_check_start_finished)
+                    self.update_worker.start()
                 else:
                     logging.error("Failed to read local version information.")
-                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
         except Exception as e:
-            logging.error("Error checking for updates: %s", str(e))
-            QMessageBox.critical(self, "Error", "Failed to check for updates.")
+            logging.error("Error initiating update check: %s", str(e))
+
+    def _on_update_check_start_finished(self, remote_version_info):
+        remote_version = remote_version_info.get("version")
+        if remote_version and (remote_version != self.local_version):
+            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+            update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if update_dialog == QMessageBox.Yes:
+                self.download_update(remote_version_info)
+        else:
+            print(f"You already have the latest version!")
 
     def check_for_update(self):
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
-                local_version = local_version_info.get("version")
-                if local_version:
-                    remote_version_info = self.fetch_remote_version()
-                    remote_version = remote_version_info.get("version")
-                    logging.info(f"Remote version: {remote_version}")
-
-                    if remote_version and (remote_version != local_version):
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                        if update_dialog == QMessageBox.Yes:
-                            # Download and apply the update
-                            self.download_update(remote_version_info)
-                    else:
-                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
+                self.local_version = local_version_info.get("version")
+                if self.local_version:
+                    self.update_worker_manual = UpdateWorker()
+                    self.update_worker_manual.finished.connect(self._on_update_check_manual_finished)
+                    self.update_worker_manual.error.connect(lambda err: QMessageBox.critical(self, "Error", f"Failed to check for updates: {err}"))
+                    self.update_worker_manual.start()
                 else:
                     logging.error("Failed to read local version information.")
                     QMessageBox.critical(self, "Error", "Failed to check for updates.")
@@ -1329,19 +1435,15 @@ class zucaroVersionSelector(QWidget):
             logging.error("Error checking for updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to check for updates.")
 
-    def fetch_remote_version(self):
-        try:
-            update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
-            response = requests.get(update_url)
-            if response.status_code == 200:
-                remote_version_info = response.json()
-                return remote_version_info
-            else:
-                logging.error("Failed to fetch update information.")
-                return None
-        except Exception as e:
-            logging.error("Error fetching remote version: %s", str(e))
-            return None
+    def _on_update_check_manual_finished(self, remote_version_info):
+        remote_version = remote_version_info.get("version")
+        if remote_version and (remote_version != self.local_version):
+            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+            update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if update_dialog == QMessageBox.Yes:
+                self.download_update(remote_version_info)
+        else:
+            QMessageBox.information(self, "Up to Date", "You already have the latest version!")
 
     def download_update(self, version_info):
         try:
