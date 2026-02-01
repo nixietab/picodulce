@@ -67,7 +67,7 @@ class HealthCheck:
             "Instance": "default",
             "Theme": "Dark.json",
             "ThemeBackground": True,
-            "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json",
+            "ThemeRepository": ["https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"],
             "Locale": "en",
             "ManageJava": False,
             "MaxRAM": "2G",
@@ -97,6 +97,7 @@ class HealthCheck:
             try:
                 with open(config_path, "r") as f:
                     content = f.read()
+                    import re
                     match = re.search(r'"TotalPlaytime":\s*(\d+(?:\.\d+)?)', content)
                     if match:
                         extracted_playtime = float(match.group(1))
@@ -114,6 +115,13 @@ class HealthCheck:
             return
 
         updated = False
+        
+        # Migrate old singular ThemeRepository to list
+        if "ThemeRepository" in self.config and isinstance(self.config["ThemeRepository"], str):
+            print("Migrating ThemeRepository to list.")
+            self.config["ThemeRepository"] = [self.config["ThemeRepository"]]
+            updated = True
+
         for key, value in default_config.items():
             if key not in self.config:
                 print(f"Adding missing config key: {key}")
@@ -174,7 +182,7 @@ class HealthCheck:
         dialog.setWindowTitle("Working...")
         dialog.setWindowModality(Qt.ApplicationModal)
         layout = QVBoxLayout()
-        label = QLabel("Working on stuff, please wait...")
+        label = QLabel("Working on the updates, please wait...")
         progress = QProgressBar()
         progress.setValue(0)
         layout.addWidget(label)
