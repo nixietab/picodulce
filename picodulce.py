@@ -54,6 +54,44 @@ class ThemeWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class ImageWorker(QThread):
+    finished = pyqtSignal(bytes)
+    error = pyqtSignal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            self.finished.emit(response.content)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class ThemeDownloadWorker(QThread):
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, url, theme_name):
+        super().__init__()
+        self.url = url
+        self.theme_name = theme_name
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            if not os.path.exists('themes'):
+                os.makedirs('themes')
+            theme_filename = os.path.join('themes', f'{self.theme_name}.json')
+            with open(theme_filename, 'wb') as f:
+                f.write(response.content)
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+
 class zucaroVersionSelector(QWidget):
     def __init__(self):
         super().__init__()
@@ -632,7 +670,7 @@ class zucaroVersionSelector(QWidget):
             self.selected_theme = selected_item.data(Qt.UserRole)
             current_theme_label.setText(f"Current Theme: {self.selected_theme}")
             
-     ## REPOSITORY BLOCK BEGGINS
+
 
     def download_themes_window(self):
         dialog = QDialog(self)
@@ -655,12 +693,13 @@ class zucaroVersionSelector(QWidget):
 
         self.image_label = QLabel(dialog)
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setStyleSheet("padding: 10px;")
+        self.image_label.setStyleSheet("padding: 0px; border: none;")
+        self.image_label.setFixedSize(450, 350)
         right_layout.addWidget(self.image_label)
 
-        download_button = QPushButton("Download Theme", dialog)
-        download_button.clicked.connect(self.theme_download)
-        right_layout.addWidget(download_button)
+        self.download_button = QPushButton("Download Theme", dialog)
+        self.download_button.clicked.connect(self.theme_download)
+        right_layout.addWidget(self.download_button)
 
         # Add a spacer to push the button to the bottom
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -683,56 +722,95 @@ class zucaroVersionSelector(QWidget):
         if self.is_fetching_themes:
             return
         
-        url = self.config.get("ThemeRepository")
-        if not url:
+        repos = self.config.get("ThemeRepository")
+        if not repos:
             logging.error("ThemeRepository is not defined in config.json")
             return
 
+        # Ensure repos is a list
+        if isinstance(repos, str):
+            repos = [repos]
+
         self.is_fetching_themes = True
-        self.theme_worker = ThemeWorker(url)
-        self.theme_worker.finished.connect(lambda data: self._on_themes_fetched(data, callback))
-        self.theme_worker.error.connect(self._on_themes_error)
-        self.theme_worker.start()
+        self.cached_themes = {"themes": []}
+        self.pending_fetches = len(repos)
+        self.theme_workers = []
+
+        for url in repos:
+            worker = ThemeWorker(url)
+            worker.finished.connect(lambda data, url=url: self._on_themes_fetched(data, callback))
+            worker.error.connect(lambda err, url=url: self._on_themes_error(err, url))
+            worker.start()
+            self.theme_workers.append(worker)
 
     def _on_themes_fetched(self, data, callback=None):
-        self.is_fetching_themes = False
-        self.cached_themes = data
-        if callback:
-            callback(data)
+        if isinstance(data, dict) and "themes" in data:
+            self.cached_themes["themes"].extend(data["themes"])
+        
+        self.pending_fetches -= 1
+        if self.pending_fetches <= 0:
+            self.is_fetching_themes = False
+            if callback:
+                callback(self.cached_themes)
 
-    def _on_themes_error(self, error_msg):
-        self.is_fetching_themes = False
-        logging.error(f"Error fetching themes: {error_msg}")
+    def _on_themes_error(self, error_msg, url):
+        self.pending_fetches -= 1
+        logging.error(f"Error fetching themes from {url}: {error_msg}")
+        if self.pending_fetches <= 0:
+            self.is_fetching_themes = False
 
     def fetch_themes(self):
-        # Synchronous fallback if needed, but we should prefer cached themes
-        if self.cached_themes:
+        if self.cached_themes and self.cached_themes.get("themes"):
             return self.cached_themes
         
-        try:
-            url = self.config.get("ThemeRepository")
-            if not url:
-                raise ValueError("ThemeRepository is not defined in config.json")
-            response = requests.get(url, timeout=5)
-            response.raise_for_status()
-            self.cached_themes = response.json()
-            return self.cached_themes
-        except Exception as e:
-            logging.error(f"Sync fetch_themes failed: {e}")
-            return {}
+        repos = self.config.get("ThemeRepository")
+        if not repos:
+            logging.error("ThemeRepository is not defined in config.json")
+            return {"themes": []}
 
-    def download_theme_json(self, theme_url, theme_name):
-        try:
-            response = requests.get(theme_url)
-            response.raise_for_status()
-            if not os.path.exists('themes'):
-                os.makedirs('themes')
-            theme_filename = os.path.join('themes', f'{theme_name}.json')
-            with open(theme_filename, 'wb') as f:
-                f.write(response.content)
-            print(f"Downloaded {theme_name} theme to {theme_filename}")
-        except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error downloading theme", f"An error occurred while downloading {theme_name}: {e}")
+        if isinstance(repos, str):
+            repos = [repos]
+
+        aggregated_themes = {"themes": []}
+        for url in repos:
+            try:
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                if isinstance(data, dict) and "themes" in data:
+                    aggregated_themes["themes"].extend(data["themes"])
+            except Exception as e:
+                logging.error(f"Sync fetch_themes failed for {url}: {e}")
+        
+        self.cached_themes = aggregated_themes
+        return self.cached_themes
+
+    def _on_image_loaded(self, data):
+        pixmap = QPixmap()
+        pixmap.loadFromData(data)
+        if hasattr(self, 'image_label'):
+            # Scale pixmap to fit the label while keeping aspect ratio
+            scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.image_label.setPixmap(scaled_pixmap)
+
+    def _on_image_error(self, error_msg):
+        if hasattr(self, 'image_label'):
+            self.image_label.setText(f"Error loading image: {error_msg}")
+        logging.error(f"Failed to load preview image: {error_msg}")
+
+    def _on_theme_downloaded(self, theme_name):
+        self.load_themes()
+        if hasattr(self, 'download_button'):
+            self.download_button.setEnabled(True)
+            self.download_button.setText("Download Theme")
+        print(f"Downloaded {theme_name} theme.")
+
+    def _on_theme_download_error(self, error_msg):
+        if hasattr(self, 'download_button'):
+            self.download_button.setEnabled(True)
+            self.download_button.setText("Download Theme")
+        self.show_error_popup("Error downloading theme", f"An error occurred: {error_msg}")
+        logging.error(f"Failed to download theme: {error_msg}")
 
     def show_error_popup(self, title, message):
         msg = QMessageBox()
@@ -780,24 +858,21 @@ class zucaroVersionSelector(QWidget):
                 )
                 self.details_label.setTextFormat(Qt.RichText)
                 self.details_label.setOpenExternalLinks(True)
+                
                 preview = theme.get('preview')
                 if preview:
-                    image_data = self.fetch_image(preview)
-                    if image_data:
-                        pixmap = QPixmap()
-                        pixmap.loadFromData(image_data)
-                        self.image_label.setPixmap(pixmap)
-                    else:
-                        self.image_label.clear()
+                    # Cancel previous image fetch if it's still running
+                    if hasattr(self, 'image_worker') and self.image_worker.isRunning():
+                        self.image_worker.terminate()
+                        self.image_worker.wait()
 
-    def fetch_image(self, url):
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error fetching image", f"An error occurred while fetching the image: {e}")
-            return None
+                    self.image_label.setText("Loading image...")
+                    self.image_worker = ImageWorker(preview)
+                    self.image_worker.finished.connect(self._on_image_loaded)
+                    self.image_worker.error.connect(self._on_image_error)
+                    self.image_worker.start()
+                else:
+                    self.image_label.clear()
 
     def find_theme_by_name(self, theme_name):
         themes_data = self.fetch_themes()
@@ -814,10 +889,16 @@ class zucaroVersionSelector(QWidget):
             theme = self.find_theme_by_name(theme_name)
             if theme:
                 theme_url = theme["link"]
-                self.download_theme_json(theme_url, theme_name)
-                self.load_themes()
+                if hasattr(self, 'download_button'):
+                    self.download_button.setEnabled(False)
+                    self.download_button.setText("Downloading...")
+                
+                self.download_worker = ThemeDownloadWorker(theme_url, theme_name)
+                self.download_worker.finished.connect(lambda: self._on_theme_downloaded(theme_name))
+                self.download_worker.error.connect(self._on_theme_download_error)
+                self.download_worker.start()
 
-        ## REPOSITORY BLOCK ENDS
+
 
 
     def save_settings(
