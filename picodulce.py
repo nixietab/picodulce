@@ -16,7 +16,7 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QGroupBox, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut, QKeySequenceEdit, QScrollArea
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush, QKeySequence
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTimer
 from datetime import datetime
@@ -374,37 +374,36 @@ class zucaroVersionSelector(QWidget):
 
     def setup_shortcuts(self):
         """Set up keyboard shortcuts for the main window."""
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
         # Screenshots folder
-        QShortcut(QKeySequence("Ctrl+A"), self, self.open_screenshots_folder)
+        QShortcut(QKeySequence(shortcuts_config.get("Screenshots", "Ctrl+A")), self, self.open_screenshots_folder)
         
         # Play instance
-        QShortcut(QKeySequence("Ctrl+P"), self, self.play_instance)
+        QShortcut(QKeySequence(shortcuts_config.get("Play", "Ctrl+P")), self, self.play_instance)
         
         # Open dialogs
-        QShortcut(QKeySequence("Ctrl+M"), self, self.open_mod_loader_and_version_menu)
-        QShortcut(QKeySequence("Ctrl+O"), self, self.open_marroc_script)
-        QShortcut(QKeySequence("Ctrl+S"), self, self.open_settings_dialog)
-        QShortcut(QKeySequence("Ctrl+,"), self, self.open_settings_dialog)
-        QShortcut(QKeySequence("Ctrl+I"), self, self.show_about_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("VersionManager", "Ctrl+M")), self, self.open_mod_loader_and_version_menu)
+        QShortcut(QKeySequence(shortcuts_config.get("ModManager", "Ctrl+O")), self, self.open_marroc_script)
+        QShortcut(QKeySequence(shortcuts_config.get("Settings", "Ctrl+S")), self, self.open_settings_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("SettingsAlt", "Ctrl+,")), self, self.open_settings_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("About", "Ctrl+I")), self, self.show_about_dialog)
         
         # Refresh
-        QShortcut(QKeySequence("Ctrl+R"), self, self.populate_installed_versions)
-        QShortcut(QKeySequence("F5"), self, self.populate_installed_versions)
+        QShortcut(QKeySequence(shortcuts_config.get("Refresh", "Ctrl+R")), self, self.populate_installed_versions)
+        QShortcut(QKeySequence(shortcuts_config.get("RefreshAlt", "F5")), self, self.populate_installed_versions)
         
         # Quit
-        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+        QShortcut(QKeySequence(shortcuts_config.get("Quit", "Ctrl+Q")), self, self.close)
 
     def open_screenshots_folder(self):
         """Open the screenshots folder for the selected instance."""
         try:
-            # Get the instance name from config
             instance_name = self.config.get("Instance", "default")
             
-            # Get instance directory
             command = f"instance dir {instance_name}"
             result = modulecli.run_command(command)
             if not result:
-                # Fallback to local path if zucaro is not behaving
                 if sys.platform.startswith('linux'):
                     instance_dir = os.path.expanduser(f"~/.local/share/zucaro/instances/{instance_name}")
                 elif sys.platform.startswith('win'):
@@ -417,11 +416,9 @@ class zucaroVersionSelector(QWidget):
             
             screenshots_dir = os.path.join(instance_dir, "minecraft", "screenshots")
             
-            # Create directory if it doesn't exist
             if not os.path.exists(screenshots_dir):
                 os.makedirs(screenshots_dir, exist_ok=True)
             
-            # Open in file explorer
             QDesktopServices.openUrl(QUrl.fromLocalFile(screenshots_dir))
             
         except Exception as e:
@@ -430,14 +427,14 @@ class zucaroVersionSelector(QWidget):
     def keyPressEvent(self, event):
         focus_widget = self.focusWidget()
         if event.key() == Qt.Key_Down:
-            self.focusNextChild()  # Move focus to the next widget
+            self.focusNextChild()
         elif event.key() == Qt.Key_Up:
-            self.focusPreviousChild()  # Move focus to the previous widget
+            self.focusPreviousChild()
         elif event.key() in [Qt.Key_Return, Qt.Key_Enter]:
             if isinstance(focus_widget, QPushButton):
-                focus_widget.click()  # Trigger the button click
+                focus_widget.click()
             elif isinstance(focus_widget, QComboBox):
-                focus_widget.showPopup()  # Show dropdown for combo box
+                focus_widget.showPopup()
         else:
             super().keyPressEvent(event)
 
@@ -448,7 +445,6 @@ class zucaroVersionSelector(QWidget):
 
         tab_widget = QTabWidget()
 
-        # --- Settings Tab ---
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
@@ -480,7 +476,6 @@ class zucaroVersionSelector(QWidget):
 
         settings_tab.setLayout(settings_layout)
 
-        # --- Customization Tab ---
         customization_tab = QWidget()
         customization_layout = QVBoxLayout()
 
@@ -510,74 +505,134 @@ class zucaroVersionSelector(QWidget):
 
         customization_tab.setLayout(customization_layout)
 
-        # --- Java Tab ---
         java_tab = QWidget()
         java_layout = QVBoxLayout()
+        java_layout.setContentsMargins(10, 10, 10, 10)
+        java_layout.setSpacing(10)
 
-        # Java path input with browse button
+        # Java Path Section
+        path_label = QLabel("Custom Java Path (leave empty for default):")
         java_path_layout = QHBoxLayout()
         java_path_input = QLineEdit()
-        java_path_input.setPlaceholderText("Custom Java Installation Path")
+        java_path_input.setPlaceholderText("Path to your java executable")
         java_path_input.setText(self.config.get("JavaPath", ""))
-        browse_button = QPushButton("Examine")
+        
+        browse_button = QPushButton("Browse...")
         browse_button.clicked.connect(lambda: self.browse_java_path(java_path_input))
+        
         java_path_layout.addWidget(java_path_input)
         java_path_layout.addWidget(browse_button)
-
-        ram_layout = QHBoxLayout()
-        ram_label = QLabel("Assigned RAM:")
-        ram_selector = QLineEdit()
-        ram_selector.setPlaceholderText("2G")  # Show default placeholder
         
-        # RAM selector
-        ram_layout = QHBoxLayout()
-        ram_label = QLabel("Assigned RAM:")
-        ram_selector = QLineEdit()
-        ram_selector.setPlaceholderText("2G")  # Show default placeholder
+        java_layout.addWidget(path_label)
+        java_layout.addLayout(java_path_layout)
         
-        # Set initial value from config, ensuring it ends with 'G'
+        # RAM Section
+        ram_label = QLabel("Allocated RAM (e.g. 2G, 4G, 8G):")
+        ram_selector = QLineEdit()
+        ram_selector.setPlaceholderText("2G")
+        
+        # Set initial value from config
         initial_ram = self.config.get("MaxRAM", "2G")
         if not initial_ram.endswith('G'):
             initial_ram += 'G'
         ram_selector.setText(initial_ram)
         
-        # Ensure 'G' is always present when focus is lost
         def ensure_g_suffix():
-            current_text = ram_selector.text()
-            if not current_text.endswith('G'):
-                ram_selector.setText(current_text + 'G')
+            current_text = ram_selector.text().strip().upper()
+            if not current_text:
+                ram_selector.setText("2G")
+                return
+            digits = "".join(filter(str.isdigit, current_text))
+            if not digits: digits = "2"
+            ram_selector.setText(f"{digits}G")
         
         ram_selector.editingFinished.connect(ensure_g_suffix)
         
-        ram_layout.addWidget(ram_label)
-        ram_layout.addWidget(ram_selector)
+        java_layout.addWidget(ram_label)
+        java_layout.addWidget(ram_selector)
 
-        # Manage Java checkbox
-        manage_java_checkbox = QCheckBox("Manage Java")
+        manage_java_checkbox = QCheckBox("Manage Java automatically")
         manage_java_checkbox.setChecked(self.config.get("ManageJava", False))
+        
         manage_java_info = QLabel(
-                "<b>Disclaimer:</b> Experimental feature. Do not change these settings "
-                "unless you are sure of what you are doing. "
-                " If Manage Java is enabledthe launcher will download Java binaries for your OS only for Minecraft compatibility purposes.")
+            "If enabled, the launcher will download the right java version for each minecraft version on a contained manner."
+        )
         manage_java_info.setWordWrap(True)
-
-        # Add to layout
-        java_layout.addLayout(java_path_layout)
-        java_layout.addLayout(ram_layout)
+        manage_java_info.setStyleSheet("font-size: 11px;")
+        
         java_layout.addWidget(manage_java_checkbox)
         java_layout.addWidget(manage_java_info)
+        java_layout.addStretch()
 
         java_tab.setLayout(java_layout)
+
+        # --- Shortcuts Tab ---
+        shortcuts_tab = QWidget()
+        shortcuts_tab_layout = QVBoxLayout()
+        
+        # Reset button
+        reset_button = QPushButton("Reset to Defaults")
+        reset_button.setToolTip("Restore all keyboard shortcuts to their original values.")
+        
+        default_shortcuts = {
+            "Screenshots": "Ctrl+A",
+            "Play": "Ctrl+P",
+            "VersionManager": "Ctrl+M",
+            "ModManager": "Ctrl+O",
+            "Settings": "Ctrl+S",
+            "SettingsAlt": "Ctrl+,",
+            "About": "Ctrl+I",
+            "Refresh": "Ctrl+R",
+            "RefreshAlt": "F5",
+            "Quit": "Ctrl+Q",
+            "SaveSettings": "Ctrl+S",
+            "CloseDialog": "Ctrl+W",
+            "CancelDialog": "Escape",
+            "NextTab": "Ctrl+Tab",
+            "PrevTab": "Ctrl+Shift+Tab"
+        }
+        
+        def reset_to_defaults():
+            for name, editor in shortcut_editors.items():
+                if name in default_shortcuts:
+                    editor.setKeySequence(QKeySequence(default_shortcuts[name]))
+        
+        reset_button.clicked.connect(reset_to_defaults)
+        shortcuts_tab_layout.addWidget(reset_button)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QGridLayout(scroll_content)
+        
+        shortcut_editors = {}
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
+        row = 0
+        for name, sequence in shortcuts_config.items():
+            label = QLabel(name + ":")
+            editor = QKeySequenceEdit(QKeySequence(sequence))
+            scroll_layout.addWidget(label, row, 0)
+            scroll_layout.addWidget(editor, row, 1)
+            shortcut_editors[name] = editor
+            row += 1
+            
+        scroll_area.setWidget(scroll_content)
+        shortcuts_tab_layout.addWidget(scroll_area)
+        shortcuts_tab.setLayout(shortcuts_tab_layout)
 
         # Add all tabs
         tab_widget.addTab(settings_tab, "Settings")
         tab_widget.addTab(customization_tab, "Customization")
         tab_widget.addTab(java_tab, "Java")
+        tab_widget.addTab(shortcuts_tab, "Shortcuts")
 
         # Save button
         save_button = QPushButton('Save')
         save_button.clicked.connect(
-            lambda: self.save_settings(
+            lambda: self.validate_and_save_shortcuts(
+                dialog,
+                shortcut_editors,
                 discord_rcp_checkbox.isChecked(),
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
@@ -595,7 +650,11 @@ class zucaroVersionSelector(QWidget):
         dialog.setLayout(main_layout)
 
         # Add shortcuts to the dialog
-        QShortcut(QKeySequence("Ctrl+S"), dialog, lambda: self.save_settings(
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
+        QShortcut(QKeySequence(shortcuts_config.get("SaveSettings", "Ctrl+S")), dialog, lambda: self.validate_and_save_shortcuts(
+            dialog,
+            shortcut_editors,
             discord_rcp_checkbox.isChecked(),
             check_updates_checkbox.isChecked(),
             theme_background_checkbox.isChecked(),
@@ -604,13 +663,13 @@ class zucaroVersionSelector(QWidget):
             ram_selector.text(),
             manage_java_checkbox.isChecked()
         ))
-        QShortcut(QKeySequence("Ctrl+W"), dialog, dialog.reject)
-        QShortcut(QKeySequence("Escape"), dialog, dialog.reject)
-
+        QShortcut(QKeySequence(shortcuts_config.get("CloseDialog", "Ctrl+W")), dialog, dialog.reject)
+        QShortcut(QKeySequence(shortcuts_config.get("CancelDialog", "Escape")), dialog, dialog.reject)
+        
         # Tab navigation
-        QShortcut(QKeySequence("Ctrl+Tab"), dialog, 
+        QShortcut(QKeySequence(shortcuts_config.get("NextTab", "Ctrl+Tab")), dialog, 
                   lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() + 1) % tab_widget.count()))
-        QShortcut(QKeySequence("Ctrl+Shift+Tab"), dialog, 
+        QShortcut(QKeySequence(shortcuts_config.get("PrevTab", "Ctrl+Shift+Tab")), dialog, 
                   lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() - 1) % tab_widget.count()))
 
         dialog.exec_()
@@ -898,8 +957,62 @@ class zucaroVersionSelector(QWidget):
                 self.download_worker.error.connect(self._on_theme_download_error)
                 self.download_worker.start()
 
+    def validate_and_save_shortcuts(
+        self,
+        dialog,
+        editors,
+        is_rcp_enabled,
+        check_updates_on_start,
+        theme_background,
+        selected_theme,
+        java_path,
+        ram_allocation,
+        manage_java_enabled
+    ):
+        new_shortcuts = {}
+        sequences_seen = set()
+        duplicates = []
+        
+        for name, editor in editors.items():
+            seq_text = editor.keySequence().toString()
+            if not seq_text:
+                continue
+            
+            # Allow overlap between Settings and SaveSettings
+            is_settings_overlap = (name in ["Settings", "SaveSettings"])
+            
+            if seq_text in sequences_seen:
+                # Check if the existing sequence was also a settings overlap
+                already_has_non_settings_overlap = False
+                for prev_name, prev_seq in new_shortcuts.items():
+                    if prev_seq == seq_text and prev_name not in ["Settings", "SaveSettings"]:
+                        already_has_non_settings_overlap = True
+                        break
+                
+                if not is_settings_overlap or already_has_non_settings_overlap:
+                    duplicates.append(name)
+            
+            sequences_seen.add(seq_text)
+            new_shortcuts[name] = seq_text
+            
+        if duplicates:
+            QMessageBox.warning(
+                dialog,
+                "Duplicate Shortcuts",
+                f"The following shortcuts are duplicated: {', '.join(duplicates)}\nPlease ensure all shortcuts are unique."
+            )
+            return
 
-
+        self.save_settings(
+            is_rcp_enabled,
+            check_updates_on_start,
+            theme_background,
+            selected_theme,
+            java_path,
+            ram_allocation,
+            manage_java_enabled,
+            new_shortcuts
+        )
 
     def save_settings(
         self,
@@ -909,7 +1022,8 @@ class zucaroVersionSelector(QWidget):
         selected_theme,
         java_path,
         ram_allocation,
-        manage_java_enabled
+        manage_java_enabled,
+        new_shortcuts=None
     ):
         config_path = "config.json"
         
@@ -927,6 +1041,9 @@ class zucaroVersionSelector(QWidget):
             "MaxRAM": ram_allocation,
             "JavaPath": java_path,
         }
+        
+        if new_shortcuts:
+            updated_config["KeyboardShortcuts"] = new_shortcuts
 
         self.sync_config()
         self.config.update(updated_config)
@@ -940,6 +1057,10 @@ class zucaroVersionSelector(QWidget):
                 theme_file_path = os.path.join("themes", selected_theme)
                 self.load_theme_from_file(theme_file_path)
                 self.refresh_styles()
+            
+            # Re-setup shortcuts if they were updated
+            if new_shortcuts:
+                self.setup_shortcuts()
             
             if is_rcp_enabled != old_rcp:
                 if is_rcp_enabled:
