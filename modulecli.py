@@ -33,7 +33,7 @@ def run_command(command="zucaro"):
         sys.stderr = old_stderr
 
     output = mystdout.getvalue().strip()
-    error = mystderr.getvalue().strip()
+    mystderr.getvalue().strip()
 
     # Cleanup: remove zucaro-related modules from sys.modules and force garbage collection
     modules_to_remove = [mod for mod in sys.modules if mod.startswith('zucaro')]

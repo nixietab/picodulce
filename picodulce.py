@@ -16,9 +16,9 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QGroupBox, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut, QKeySequenceEdit, QScrollArea
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush, QKeySequence
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize, QTimer
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QSpacerItem, QSizePolicy, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut, QKeySequenceEdit, QScrollArea
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QKeySequence
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QUrl, QByteArray
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
@@ -303,7 +303,7 @@ class zucaroVersionSelector(QWidget):
         # Set application style and theme
         QApplication.setStyle("Fusion")
         with open("config.json", "r") as config_file:
-            config = json.load(config_file)
+            json.load(config_file)
 
         # Load theme background
         self.load_theme_background()
@@ -543,7 +543,8 @@ class zucaroVersionSelector(QWidget):
                 ram_selector.setText("2G")
                 return
             digits = "".join(filter(str.isdigit, current_text))
-            if not digits: digits = "2"
+            if not digits:
+                digits = "2"
             ram_selector.setText(f"{digits}G")
         
         ram_selector.editingFinished.connect(ensure_g_suffix)
@@ -1164,7 +1165,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -1190,7 +1191,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -1201,7 +1202,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -1618,7 +1619,7 @@ class zucaroVersionSelector(QWidget):
             if update_dialog == QMessageBox.Yes:
                 self.download_update(remote_version_info)
         else:
-            print(f"You already have the latest version!")
+            print("You already have the latest version!")
 
     def check_for_update(self):
         try:

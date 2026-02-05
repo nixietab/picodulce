@@ -1,13 +1,11 @@
 import sys
 import threading
-import time
 import shlex
 import gc
 import re
 from io import StringIO
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer, QEvent
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 
 
 class LaunchSignals(QObject):
@@ -190,7 +188,7 @@ class LaunchWindow(QDialog):
             try:
                 self.signals.log_update.emit(f"Error launching game: {str(e)}")
                 self.signals.cleanup_done.emit()
-            except:
+            except Exception:
                 pass
 
 
@@ -241,13 +239,13 @@ class PrepareWindow(QDialog):
              try:
                  count = int(re.search(r'\d+', text).group())
                  self.status_label.setText(f"Downloading {count} libraries...")
-             except:
+             except Exception:
                  self.status_label.setText(text)
         elif "Checking" in text and "assets" in text:
              try:
                  count = int(re.search(r'\d+', text).group())
                  self.status_label.setText(f"Checking {count} assets...")
-             except:
+             except Exception:
                  self.status_label.setText(text)
         elif "Jar file" in text and "downloaded" in text:
             self.status_label.setText("Downloading game jar...")
@@ -350,7 +348,7 @@ class PrepareWindow(QDialog):
             try:
                 self.signals.log_update.emit(f"Error preparing version: {str(e)}")
                 self.signals.cleanup_done.emit()
-            except:
+            except Exception:
                 pass
 
 
@@ -363,5 +361,5 @@ def launch_instance_with_window(command, parent=None):
 def prepare_version_with_window(version, parent=None):
     window = PrepareWindow(parent)
     window.prepare_version(version)
-    result = window.exec_()
+    window.exec_()
     return window.success

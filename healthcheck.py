@@ -194,7 +194,7 @@ class HealthCheck:
 
         print(f"Copying Picomc ({picomc_size} bytes) to Zucaro ({zucaro_size} bytes)...")
 
-        app = QApplication.instance() or QApplication(sys.argv)
+        QApplication.instance() or QApplication(sys.argv)
         dialog = QDialog()
         dialog.setWindowTitle("Working...")
         dialog.setWindowModality(Qt.ApplicationModal)
