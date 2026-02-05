@@ -73,6 +73,23 @@ class HealthCheck:
             "MaxRAM": "2G",
             "JavaPath": "",
             "ZucaroCheck": False,
+            "KeyboardShortcuts": {
+                "Screenshots": "Ctrl+A",
+                "Play": "Ctrl+P",
+                "VersionManager": "Ctrl+M",
+                "ModManager": "Ctrl+O",
+                "Settings": "Ctrl+S",
+                "SettingsAlt": "Ctrl+,",
+                "About": "Ctrl+I",
+                "Refresh": "Ctrl+R",
+                "RefreshAlt": "F5",
+                "Quit": "Ctrl+Q",
+                "SaveSettings": "Ctrl+S",
+                "CloseDialog": "Ctrl+W",
+                "CancelDialog": "Escape",
+                "NextTab": "Ctrl+Tab",
+                "PrevTab": "Ctrl+Shift+Tab"
+            }
         }
 
         if not os.path.exists(config_path):
