@@ -67,15 +67,33 @@ class HealthCheck:
             "Instance": "default",
             "Theme": "Dark.json",
             "ThemeBackground": True,
-            "ThemeRepository": "https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json",
+            "ThemeRepository": ["https://raw.githubusercontent.com/nixietab/picodulce-themes/main/repo.json"],
             "Locale": "en",
             "ManageJava": False,
             "MaxRAM": "2G",
             "JavaPath": "",
             "ZucaroCheck": False,
+            "KeyboardShortcuts": {
+                "Screenshots": "Ctrl+A",
+                "Play": "Ctrl+P",
+                "VersionManager": "Ctrl+M",
+                "ModManager": "Ctrl+O",
+                "Settings": "Ctrl+S",
+                "SettingsAlt": "Ctrl+,",
+                "About": "Ctrl+I",
+                "Refresh": "Ctrl+R",
+                "RefreshAlt": "F5",
+                "Quit": "Ctrl+Q",
+                "SaveSettings": "Ctrl+S",
+                "CloseDialog": "Ctrl+W",
+                "CancelDialog": "Escape",
+                "NextTab": "Ctrl+Tab",
+                "PrevTab": "Ctrl+Shift+Tab"
+            }
         }
 
         if not os.path.exists(config_path):
+            print("Config file not found. Creating default.")
             with open(config_path, "w") as config_file:
                 json.dump(default_config, config_file, indent=4)
             self.config = default_config
@@ -84,21 +102,53 @@ class HealthCheck:
         try:
             with open(config_path, "r") as config_file:
                 self.config = json.load(config_file)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Error loading config.json: {e}")
+            backup_path = "config.json.bak"
+            print(f"Backing up broken config to {backup_path}")
+            shutil.copy2(config_path, backup_path)
+            
+            # Try to preserve at least the TotalPlaytime if possible by simple string search
+            # as a last resort before wiping everything
+            extracted_playtime = 0
+            try:
+                with open(config_path, "r") as f:
+                    content = f.read()
+                    import re
+                    match = re.search(r'"TotalPlaytime":\s*(\d+(?:\.\d+)?)', content)
+                    if match:
+                        extracted_playtime = float(match.group(1))
+                        print(f"Recovered TotalPlaytime from broken JSON: {extracted_playtime}")
+            except Exception:
+                pass
+
+            print("Resetting to default config due to corruption.")
+            self.config = default_config.copy()
+            if extracted_playtime > 0:
+                self.config["TotalPlaytime"] = extracted_playtime
+            
             with open(config_path, "w") as config_file:
-                json.dump(default_config, config_file, indent=4)
-            self.config = default_config
+                json.dump(self.config, config_file, indent=4)
             return
 
         updated = False
+        
+        # Migrate old singular ThemeRepository to list
+        if "ThemeRepository" in self.config and isinstance(self.config["ThemeRepository"], str):
+            print("Migrating ThemeRepository to list.")
+            self.config["ThemeRepository"] = [self.config["ThemeRepository"]]
+            updated = True
+
         for key, value in default_config.items():
             if key not in self.config:
+                print(f"Adding missing config key: {key}")
                 self.config[key] = value
                 updated = True
 
         if updated:
             with open(config_path, "w") as config_file:
                 json.dump(self.config, config_file, indent=4)
+
 
     def get_folder_size(self, folder_path):
         total_size = 0
@@ -144,12 +194,12 @@ class HealthCheck:
 
         print(f"Copying Picomc ({picomc_size} bytes) to Zucaro ({zucaro_size} bytes)...")
 
-        app = QApplication.instance() or QApplication(sys.argv)
+        QApplication.instance() or QApplication(sys.argv)
         dialog = QDialog()
         dialog.setWindowTitle("Working...")
         dialog.setWindowModality(Qt.ApplicationModal)
         layout = QVBoxLayout()
-        label = QLabel("Working on stuff, please wait...")
+        label = QLabel("Working on the updates, please wait...")
         progress = QProgressBar()
         progress.setValue(0)
         layout.addWidget(label)

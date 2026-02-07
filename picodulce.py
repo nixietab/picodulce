@@ -16,15 +16,85 @@ from healthcheck import HealthCheck
 import modulecli
 import loaddaemon
 
-from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QSpinBox, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QFrame, QSpacerItem, QSizePolicy, QMainWindow, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QBrush, QKeySequence
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl, QMetaObject, Q_ARG, QByteArray, QSize
+from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QSpacerItem, QSizePolicy, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut, QKeySequenceEdit, QScrollArea
+from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QKeySequence
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QUrl, QByteArray
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
 
+class UpdateWorker(QThread):
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
+            response = requests.get(update_url, timeout=10)
+            if response.status_code == 200:
+                self.finished.emit(response.json())
+            else:
+                self.error.emit(f"Failed to fetch update information (Status: {response.status_code})")
+        except Exception as e:
+            self.error.emit(str(e))
+
+class ThemeWorker(QThread):
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            self.finished.emit(response.json())
+        except Exception as e:
+            self.error.emit(str(e))
+
+class ImageWorker(QThread):
+    finished = pyqtSignal(bytes)
+    error = pyqtSignal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            self.finished.emit(response.content)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class ThemeDownloadWorker(QThread):
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, url, theme_name):
+        super().__init__()
+        self.url = url
+        self.theme_name = theme_name
+
+    def run(self):
+        try:
+            response = requests.get(self.url, timeout=10)
+            response.raise_for_status()
+            if not os.path.exists('themes'):
+                os.makedirs('themes')
+            theme_filename = os.path.join('themes', f'{self.theme_name}.json')
+            with open(theme_filename, 'wb') as f:
+                f.write(response.content)
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+
 class zucaroVersionSelector(QWidget):
     def __init__(self):
+        super().__init__()
         self.current_state = "menu"
         self.open_dialogs = []
 
@@ -37,27 +107,17 @@ class zucaroVersionSelector(QWidget):
 
         themes_folder = "themes"
         theme_file = self.config.get("Theme", "Dark.json")
-
-        # Ensure the theme file exists in the themes directory
         theme_file_path = os.path.join(themes_folder, theme_file)
 
-        try:
-            # Load and apply the theme from the file
-            self.load_theme_from_file(theme_file_path, app)
-            print(f"Theme '{theme_file}' loaded successfully.")
-        except Exception as e:
-            print(f"Error: Could not load theme '{theme_file}'. Falling back to default theme. {e}")
-
-        super().__init__()
+        # Load and apply primary theme
+        self.load_theme_from_file(theme_file_path)
+        
         self.init_ui()
 
         if self.config.get("CheckUpdate", False):
             self.check_for_update_start()
 
-        if self.config.get("IsRCPenabled", False):
-            discord_rcp_thread = Thread(target=self.start_discord_rcp)
-            discord_rcp_thread.daemon = True  # Make the thread a daemon so it terminates when the main program exits
-            discord_rcp_thread.start()
+        self.start_discord_rcp_thread()
 
         if self.config.get("IsFirstLaunch", False):
             self.FirstLaunch()
@@ -68,8 +128,16 @@ class zucaroVersionSelector(QWidget):
         # Set up keyboard shortcuts
         self.setup_shortcuts()
 
+        # Pre-fetch themes in background
+        self.cached_themes = None
+        self.is_fetching_themes = False
+        self.fetch_themes_async()
 
-    def load_theme_from_file(self, file_path, app):
+
+    def load_theme_from_file(self, file_path, app=None):
+        if app is None:
+            app = QApplication.instance()
+            
         self.theme = {}
         # Check if the file exists, else load 'Dark.json'
         if not os.path.exists(file_path):
@@ -78,55 +146,61 @@ class zucaroVersionSelector(QWidget):
 
             # Ensure the fallback file exists
             if not os.path.exists(file_path):
-                raise FileNotFoundError(f"Default theme file '{file_path}' not found.")
+                print(f"Warning: Default theme file '{file_path}' not found.")
+                return
 
-        # Open and parse the JSON file
-        with open(file_path, "r") as file:
-            self.theme = json.load(file)  # Store theme as a class attribute
+        try:
+            # Open and parse the JSON file
+            with open(file_path, "r") as file:
+                self.theme = json.load(file)  # Store theme as a class attribute
 
-        # Ensure the required keys exist
-        if "palette" not in self.theme:
-            raise ValueError("JSON theme must contain a 'palette' section.")
+            # Ensure the required keys exist
+            if "palette" not in self.theme:
+                raise ValueError("JSON theme must contain a 'palette' section.")
 
-        # Extract the palette
-        palette_config = self.theme["palette"]
+            # Extract the palette
+            palette_config = self.theme["palette"]
 
-        # Create a new QPalette
-        palette = QPalette()
+            # Create a new QPalette
+            palette = QPalette()
 
-        # Map palette roles to PyQt5 palette roles
-        role_map = {
-            "Window": QPalette.Window,
-            "WindowText": QPalette.WindowText,
-            "Base": QPalette.Base,
-            "AlternateBase": QPalette.AlternateBase,
-            "ToolTipBase": QPalette.ToolTipBase,
-            "ToolTipText": QPalette.ToolTipText,
-            "Text": QPalette.Text,
-            "Button": QPalette.Button,
-            "ButtonText": QPalette.ButtonText,
-            "BrightText": QPalette.BrightText,
-            "Link": QPalette.Link,
-            "Highlight": QPalette.Highlight,
-            "HighlightedText": QPalette.HighlightedText,
-        }
+            # Map palette roles to PyQt5 palette roles
+            role_map = {
+                "Window": QPalette.Window,
+                "WindowText": QPalette.WindowText,
+                "Base": QPalette.Base,
+                "AlternateBase": QPalette.AlternateBase,
+                "ToolTipBase": QPalette.ToolTipBase,
+                "ToolTipText": QPalette.ToolTipText,
+                "Text": QPalette.Text,
+                "Button": QPalette.Button,
+                "ButtonText": QPalette.ButtonText,
+                "BrightText": QPalette.BrightText,
+                "Link": QPalette.Link,
+                "Highlight": QPalette.Highlight,
+                "HighlightedText": QPalette.HighlightedText,
+            }
 
-        # Apply colors from the palette config
-        for role_name, color_code in palette_config.items():
-            if role_name in role_map:
-                palette.setColor(role_map[role_name], QColor(color_code))
+            # Apply colors from the palette config
+            for role_name, color_code in palette_config.items():
+                if role_name in role_map:
+                    palette.setColor(role_map[role_name], QColor(color_code))
+                else:
+                    print(f"Warning: '{role_name}' is not a recognized palette role.")
+            
+            # Apply the palette to the application
+            app.setPalette(palette)
+
+            # Apply style sheet if present
+            if "stylesheet" in self.theme:
+                stylesheet = self.theme["stylesheet"]
+                app.setStyleSheet(stylesheet)
             else:
-                print(f"Warning: '{role_name}' is not a recognized palette role.")
-        
-        # Apply the palette to the application
-        app.setPalette(palette)
-
-        # Apply style sheet if present
-        if "stylesheet" in self.theme:
-            stylesheet = self.theme["stylesheet"]
-            app.setStyleSheet(stylesheet)
-        else:
-            print("Theme dosn't seem to have a stylesheet")
+                # Clear stylesheet if not present in new theme
+                app.setStyleSheet("")
+                print("Theme doesn't seem to have a stylesheet")
+        except Exception as e:
+            print(f"Error applying theme: {e}")
 
     def FirstLaunch(self):
         try:
@@ -154,54 +228,67 @@ class zucaroVersionSelector(QWidget):
             print("An error occurred while creating the instance.")
             print("Error output:", str(e))
 
-    def resize_event(self, event):
+    def resizeEvent(self, event):
         if hasattr(self, 'movie_label'):
-            self.movie_label.setGeometry(0, 0, 400, 320)
-        event.accept()  # Accept the resize event
+            self.movie_label.setGeometry(0, 0, self.width(), self.height())
+        super().resizeEvent(event)
 
     def load_theme_background(self):
         """Load and set the theme background image from base64 data in the theme configuration."""
-        if not self.config.get("ThemeBackground", False):  # Default to False if ThemeBackground is missing
+        # Remove existing background label if it exists
+        if hasattr(self, 'movie_label'):
+            self.movie_label.setParent(None)
+            self.movie_label.deleteLater()
+            delattr(self, 'movie_label')
+
+        # We always want autofill to use the palette color even if no image is used
+        self.setAutoFillBackground(True)
+
+        if not self.config.get("ThemeBackground", False):
             return
 
         # Get the base64 string for the background image from the theme file
         theme_background_base64 = self.theme.get("background_image_base64", "")
         if not theme_background_base64:
-            print("No background GIF base64 string found in the theme file.")
+            print("No background GIF base64 string found in the theme file. Using palette color.")
             return
 
         try:
             # Decode the base64 string to get the binary data
             background_image_data = QByteArray.fromBase64(theme_background_base64.encode())
-            temp_gif_path = "temp.gif"  # Write the gif into a temp file because Qt stuff
+            temp_gif_path = "temp.gif"
             with open(temp_gif_path, 'wb') as temp_gif_file:
                 temp_gif_file.write(background_image_data)
 
             # Create a QMovie object from the temporary file
             movie = QMovie(temp_gif_path)
             if movie.isValid():
-                self.setAutoFillBackground(True)
-                palette = self.palette()
-
-                # Set the QMovie to a QLabel
+                # Create the label for the background
                 self.movie_label = QLabel(self)
                 self.movie_label.setMovie(movie)
-                self.movie_label.setGeometry(0, 0, movie.frameRect().width(), movie.frameRect().height())
-                self.movie_label.setScaledContents(True)  # Ensure the QLabel scales its contents
+                self.movie_label.setGeometry(0, 0, self.width(), self.height())
+                self.movie_label.setScaledContents(True)
+                self.movie_label.setAttribute(Qt.WA_TransparentForMouseEvents) # Don't block clicks
+                self.movie_label.lower()  # Send to background
+                self.movie_label.show()
                 movie.start()
-
-                # Use the QLabel pixmap as the brush texture
-                brush = QBrush(QPixmap(movie.currentPixmap()))
-                brush.setStyle(Qt.TexturePattern)
-                palette.setBrush(QPalette.Window, brush)
-                self.setPalette(palette)
-
-                # Adjust the QLabel size when the window is resized
-                self.movie_label.resizeEvent = self.resize_event
             else:
                 print("Error: Failed to load background GIF from base64 string.")
         except Exception as e:
             print(f"Error: Failed to decode and set background GIF. {e}")
+
+    def refresh_styles(self):
+        """Refreshes the styles of UI components based on the current theme."""
+        # Update background
+        self.load_theme_background()
+        
+        # Update accent colors for buttons
+        highlight_color = self.palette().color(QPalette.Highlight)
+        if hasattr(self, 'play_button'):
+            self.play_button.setStyleSheet(f"background-color: {highlight_color.name()}; color: white;")
+        
+        # You can add other style refreshes here if needed
+        self.update() # Force repaint
 
     def init_ui(self):
         self.setWindowTitle('PicoDulce Launcher')  # Change window title
@@ -216,7 +303,7 @@ class zucaroVersionSelector(QWidget):
         # Set application style and theme
         QApplication.setStyle("Fusion")
         with open("config.json", "r") as config_file:
-            config = json.load(config_file)
+            json.load(config_file)
 
         # Load theme background
         self.load_theme_background()
@@ -287,37 +374,36 @@ class zucaroVersionSelector(QWidget):
 
     def setup_shortcuts(self):
         """Set up keyboard shortcuts for the main window."""
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
         # Screenshots folder
-        QShortcut(QKeySequence("Ctrl+A"), self, self.open_screenshots_folder)
+        QShortcut(QKeySequence(shortcuts_config.get("Screenshots", "Ctrl+A")), self, self.open_screenshots_folder)
         
         # Play instance
-        QShortcut(QKeySequence("Ctrl+P"), self, self.play_instance)
+        QShortcut(QKeySequence(shortcuts_config.get("Play", "Ctrl+P")), self, self.play_instance)
         
         # Open dialogs
-        QShortcut(QKeySequence("Ctrl+M"), self, self.open_mod_loader_and_version_menu)
-        QShortcut(QKeySequence("Ctrl+O"), self, self.open_marroc_script)
-        QShortcut(QKeySequence("Ctrl+S"), self, self.open_settings_dialog)
-        QShortcut(QKeySequence("Ctrl+,"), self, self.open_settings_dialog)
-        QShortcut(QKeySequence("Ctrl+I"), self, self.show_about_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("VersionManager", "Ctrl+M")), self, self.open_mod_loader_and_version_menu)
+        QShortcut(QKeySequence(shortcuts_config.get("ModManager", "Ctrl+O")), self, self.open_marroc_script)
+        QShortcut(QKeySequence(shortcuts_config.get("Settings", "Ctrl+S")), self, self.open_settings_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("SettingsAlt", "Ctrl+,")), self, self.open_settings_dialog)
+        QShortcut(QKeySequence(shortcuts_config.get("About", "Ctrl+I")), self, self.show_about_dialog)
         
         # Refresh
-        QShortcut(QKeySequence("Ctrl+R"), self, self.populate_installed_versions)
-        QShortcut(QKeySequence("F5"), self, self.populate_installed_versions)
+        QShortcut(QKeySequence(shortcuts_config.get("Refresh", "Ctrl+R")), self, self.populate_installed_versions)
+        QShortcut(QKeySequence(shortcuts_config.get("RefreshAlt", "F5")), self, self.populate_installed_versions)
         
         # Quit
-        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+        QShortcut(QKeySequence(shortcuts_config.get("Quit", "Ctrl+Q")), self, self.close)
 
     def open_screenshots_folder(self):
         """Open the screenshots folder for the selected instance."""
         try:
-            # Get the instance name from config
             instance_name = self.config.get("Instance", "default")
             
-            # Get instance directory
             command = f"instance dir {instance_name}"
             result = modulecli.run_command(command)
             if not result:
-                # Fallback to local path if zucaro is not behaving
                 if sys.platform.startswith('linux'):
                     instance_dir = os.path.expanduser(f"~/.local/share/zucaro/instances/{instance_name}")
                 elif sys.platform.startswith('win'):
@@ -330,11 +416,9 @@ class zucaroVersionSelector(QWidget):
             
             screenshots_dir = os.path.join(instance_dir, "minecraft", "screenshots")
             
-            # Create directory if it doesn't exist
             if not os.path.exists(screenshots_dir):
                 os.makedirs(screenshots_dir, exist_ok=True)
             
-            # Open in file explorer
             QDesktopServices.openUrl(QUrl.fromLocalFile(screenshots_dir))
             
         except Exception as e:
@@ -343,14 +427,14 @@ class zucaroVersionSelector(QWidget):
     def keyPressEvent(self, event):
         focus_widget = self.focusWidget()
         if event.key() == Qt.Key_Down:
-            self.focusNextChild()  # Move focus to the next widget
+            self.focusNextChild()
         elif event.key() == Qt.Key_Up:
-            self.focusPreviousChild()  # Move focus to the previous widget
+            self.focusPreviousChild()
         elif event.key() in [Qt.Key_Return, Qt.Key_Enter]:
             if isinstance(focus_widget, QPushButton):
-                focus_widget.click()  # Trigger the button click
+                focus_widget.click()
             elif isinstance(focus_widget, QComboBox):
-                focus_widget.showPopup()  # Show dropdown for combo box
+                focus_widget.showPopup()
         else:
             super().keyPressEvent(event)
 
@@ -361,7 +445,6 @@ class zucaroVersionSelector(QWidget):
 
         tab_widget = QTabWidget()
 
-        # --- Settings Tab ---
         settings_tab = QWidget()
         settings_layout = QVBoxLayout()
 
@@ -393,7 +476,6 @@ class zucaroVersionSelector(QWidget):
 
         settings_tab.setLayout(settings_layout)
 
-        # --- Customization Tab ---
         customization_tab = QWidget()
         customization_layout = QVBoxLayout()
 
@@ -423,74 +505,135 @@ class zucaroVersionSelector(QWidget):
 
         customization_tab.setLayout(customization_layout)
 
-        # --- Java Tab ---
         java_tab = QWidget()
         java_layout = QVBoxLayout()
+        java_layout.setContentsMargins(10, 10, 10, 10)
+        java_layout.setSpacing(10)
 
-        # Java path input with browse button
+        # Java Path Section
+        path_label = QLabel("Custom Java Path (leave empty for default):")
         java_path_layout = QHBoxLayout()
         java_path_input = QLineEdit()
-        java_path_input.setPlaceholderText("Custom Java Installation Path")
+        java_path_input.setPlaceholderText("Path to your java executable")
         java_path_input.setText(self.config.get("JavaPath", ""))
-        browse_button = QPushButton("Examine")
+        
+        browse_button = QPushButton("Browse...")
         browse_button.clicked.connect(lambda: self.browse_java_path(java_path_input))
+        
         java_path_layout.addWidget(java_path_input)
         java_path_layout.addWidget(browse_button)
-
-        ram_layout = QHBoxLayout()
-        ram_label = QLabel("Assigned RAM:")
-        ram_selector = QLineEdit()
-        ram_selector.setPlaceholderText("2G")  # Show default placeholder
         
-        # RAM selector
-        ram_layout = QHBoxLayout()
-        ram_label = QLabel("Assigned RAM:")
-        ram_selector = QLineEdit()
-        ram_selector.setPlaceholderText("2G")  # Show default placeholder
+        java_layout.addWidget(path_label)
+        java_layout.addLayout(java_path_layout)
         
-        # Set initial value from config, ensuring it ends with 'G'
+        # RAM Section
+        ram_label = QLabel("Allocated RAM (e.g. 2G, 4G, 8G):")
+        ram_selector = QLineEdit()
+        ram_selector.setPlaceholderText("2G")
+        
+        # Set initial value from config
         initial_ram = self.config.get("MaxRAM", "2G")
         if not initial_ram.endswith('G'):
             initial_ram += 'G'
         ram_selector.setText(initial_ram)
         
-        # Ensure 'G' is always present when focus is lost
         def ensure_g_suffix():
-            current_text = ram_selector.text()
-            if not current_text.endswith('G'):
-                ram_selector.setText(current_text + 'G')
+            current_text = ram_selector.text().strip().upper()
+            if not current_text:
+                ram_selector.setText("2G")
+                return
+            digits = "".join(filter(str.isdigit, current_text))
+            if not digits:
+                digits = "2"
+            ram_selector.setText(f"{digits}G")
         
         ram_selector.editingFinished.connect(ensure_g_suffix)
         
-        ram_layout.addWidget(ram_label)
-        ram_layout.addWidget(ram_selector)
+        java_layout.addWidget(ram_label)
+        java_layout.addWidget(ram_selector)
 
-        # Manage Java checkbox
-        manage_java_checkbox = QCheckBox("Manage Java")
+        manage_java_checkbox = QCheckBox("Manage Java automatically")
         manage_java_checkbox.setChecked(self.config.get("ManageJava", False))
+        
         manage_java_info = QLabel(
-                "<b>Disclaimer:</b> Experimental feature. Do not change these settings "
-                "unless you are sure of what you are doing. "
-                " If Manage Java is enabledthe launcher will download Java binaries for your OS only for Minecraft compatibility purposes.")
+            "If enabled, the launcher will download the right java version for each minecraft version on a contained manner."
+        )
         manage_java_info.setWordWrap(True)
-
-        # Add to layout
-        java_layout.addLayout(java_path_layout)
-        java_layout.addLayout(ram_layout)
+        manage_java_info.setStyleSheet("font-size: 11px;")
+        
         java_layout.addWidget(manage_java_checkbox)
         java_layout.addWidget(manage_java_info)
+        java_layout.addStretch()
 
         java_tab.setLayout(java_layout)
+
+        # --- Shortcuts Tab ---
+        shortcuts_tab = QWidget()
+        shortcuts_tab_layout = QVBoxLayout()
+        
+        # Reset button
+        reset_button = QPushButton("Reset to Defaults")
+        reset_button.setToolTip("Restore all keyboard shortcuts to their original values.")
+        
+        default_shortcuts = {
+            "Screenshots": "Ctrl+A",
+            "Play": "Ctrl+P",
+            "VersionManager": "Ctrl+M",
+            "ModManager": "Ctrl+O",
+            "Settings": "Ctrl+S",
+            "SettingsAlt": "Ctrl+,",
+            "About": "Ctrl+I",
+            "Refresh": "Ctrl+R",
+            "RefreshAlt": "F5",
+            "Quit": "Ctrl+Q",
+            "SaveSettings": "Ctrl+S",
+            "CloseDialog": "Ctrl+W",
+            "CancelDialog": "Escape",
+            "NextTab": "Ctrl+Tab",
+            "PrevTab": "Ctrl+Shift+Tab"
+        }
+        
+        def reset_to_defaults():
+            for name, editor in shortcut_editors.items():
+                if name in default_shortcuts:
+                    editor.setKeySequence(QKeySequence(default_shortcuts[name]))
+        
+        reset_button.clicked.connect(reset_to_defaults)
+        shortcuts_tab_layout.addWidget(reset_button)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QGridLayout(scroll_content)
+        
+        shortcut_editors = {}
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
+        row = 0
+        for name, sequence in shortcuts_config.items():
+            label = QLabel(name + ":")
+            editor = QKeySequenceEdit(QKeySequence(sequence))
+            scroll_layout.addWidget(label, row, 0)
+            scroll_layout.addWidget(editor, row, 1)
+            shortcut_editors[name] = editor
+            row += 1
+            
+        scroll_area.setWidget(scroll_content)
+        shortcuts_tab_layout.addWidget(scroll_area)
+        shortcuts_tab.setLayout(shortcuts_tab_layout)
 
         # Add all tabs
         tab_widget.addTab(settings_tab, "Settings")
         tab_widget.addTab(customization_tab, "Customization")
         tab_widget.addTab(java_tab, "Java")
+        tab_widget.addTab(shortcuts_tab, "Shortcuts")
 
         # Save button
         save_button = QPushButton('Save')
         save_button.clicked.connect(
-            lambda: self.save_settings(
+            lambda: self.validate_and_save_shortcuts(
+                dialog,
+                shortcut_editors,
                 discord_rcp_checkbox.isChecked(),
                 check_updates_checkbox.isChecked(),
                 theme_background_checkbox.isChecked(),
@@ -508,7 +651,11 @@ class zucaroVersionSelector(QWidget):
         dialog.setLayout(main_layout)
 
         # Add shortcuts to the dialog
-        QShortcut(QKeySequence("Ctrl+S"), dialog, lambda: self.save_settings(
+        shortcuts_config = self.config.get("KeyboardShortcuts", {})
+        
+        QShortcut(QKeySequence(shortcuts_config.get("SaveSettings", "Ctrl+S")), dialog, lambda: self.validate_and_save_shortcuts(
+            dialog,
+            shortcut_editors,
             discord_rcp_checkbox.isChecked(),
             check_updates_checkbox.isChecked(),
             theme_background_checkbox.isChecked(),
@@ -517,13 +664,13 @@ class zucaroVersionSelector(QWidget):
             ram_selector.text(),
             manage_java_checkbox.isChecked()
         ))
-        QShortcut(QKeySequence("Ctrl+W"), dialog, dialog.reject)
-        QShortcut(QKeySequence("Escape"), dialog, dialog.reject)
-
+        QShortcut(QKeySequence(shortcuts_config.get("CloseDialog", "Ctrl+W")), dialog, dialog.reject)
+        QShortcut(QKeySequence(shortcuts_config.get("CancelDialog", "Escape")), dialog, dialog.reject)
+        
         # Tab navigation
-        QShortcut(QKeySequence("Ctrl+Tab"), dialog, 
+        QShortcut(QKeySequence(shortcuts_config.get("NextTab", "Ctrl+Tab")), dialog, 
                   lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() + 1) % tab_widget.count()))
-        QShortcut(QKeySequence("Ctrl+Shift+Tab"), dialog, 
+        QShortcut(QKeySequence(shortcuts_config.get("PrevTab", "Ctrl+Shift+Tab")), dialog, 
                   lambda: tab_widget.setCurrentIndex((tab_widget.currentIndex() - 1) % tab_widget.count()))
 
         dialog.exec_()
@@ -583,7 +730,7 @@ class zucaroVersionSelector(QWidget):
             self.selected_theme = selected_item.data(Qt.UserRole)
             current_theme_label.setText(f"Current Theme: {self.selected_theme}")
             
-     ## REPOSITORY BLOCK BEGGINS
+
 
     def download_themes_window(self):
         dialog = QDialog(self)
@@ -606,12 +753,13 @@ class zucaroVersionSelector(QWidget):
 
         self.image_label = QLabel(dialog)
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setStyleSheet("padding: 10px;")
+        self.image_label.setStyleSheet("padding: 0px; border: none;")
+        self.image_label.setFixedSize(450, 350)
         right_layout.addWidget(self.image_label)
 
-        download_button = QPushButton("Download Theme", dialog)
-        download_button.clicked.connect(self.theme_download)
-        right_layout.addWidget(download_button)
+        self.download_button = QPushButton("Download Theme", dialog)
+        self.download_button.clicked.connect(self.theme_download)
+        right_layout.addWidget(self.download_button)
 
         # Add a spacer to push the button to the bottom
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -630,38 +778,99 @@ class zucaroVersionSelector(QWidget):
         themes_list = self.build_themes_list()
         self.populate_themes(self.json_files_list_widget, themes_list)
 
-    def fetch_themes(self):
-        try:
-            with open("config.json", "r") as config_file:
-                config = json.load(config_file)
-            url = config.get("ThemeRepository")
-            if not url:
-                raise ValueError("ThemeRepository is not defined in config.json")
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.json()
-        except (FileNotFoundError, json.JSONDecodeError) as config_error:
-            self.show_error_popup("Error reading configuration", f"An error occurred while reading config.json: {config_error}")
-            return {}
-        except requests.exceptions.RequestException as fetch_error:
-            self.show_error_popup("Error fetching themes", f"An error occurred while fetching themes: {fetch_error}")
-            return {}
-        except ValueError as value_error:
-            self.show_error_popup("Configuration Error", str(value_error))
-            return {}
+    def fetch_themes_async(self, callback=None):
+        if self.is_fetching_themes:
+            return
+        
+        repos = self.config.get("ThemeRepository")
+        if not repos:
+            logging.error("ThemeRepository is not defined in config.json")
+            return
 
-    def download_theme_json(self, theme_url, theme_name):
-        try:
-            response = requests.get(theme_url)
-            response.raise_for_status()
-            if not os.path.exists('themes'):
-                os.makedirs('themes')
-            theme_filename = os.path.join('themes', f'{theme_name}.json')
-            with open(theme_filename, 'wb') as f:
-                f.write(response.content)
-            print(f"Downloaded {theme_name} theme to {theme_filename}")
-        except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error downloading theme", f"An error occurred while downloading {theme_name}: {e}")
+        # Ensure repos is a list
+        if isinstance(repos, str):
+            repos = [repos]
+
+        self.is_fetching_themes = True
+        self.cached_themes = {"themes": []}
+        self.pending_fetches = len(repos)
+        self.theme_workers = []
+
+        for url in repos:
+            worker = ThemeWorker(url)
+            worker.finished.connect(lambda data, url=url: self._on_themes_fetched(data, callback))
+            worker.error.connect(lambda err, url=url: self._on_themes_error(err, url))
+            worker.start()
+            self.theme_workers.append(worker)
+
+    def _on_themes_fetched(self, data, callback=None):
+        if isinstance(data, dict) and "themes" in data:
+            self.cached_themes["themes"].extend(data["themes"])
+        
+        self.pending_fetches -= 1
+        if self.pending_fetches <= 0:
+            self.is_fetching_themes = False
+            if callback:
+                callback(self.cached_themes)
+
+    def _on_themes_error(self, error_msg, url):
+        self.pending_fetches -= 1
+        logging.error(f"Error fetching themes from {url}: {error_msg}")
+        if self.pending_fetches <= 0:
+            self.is_fetching_themes = False
+
+    def fetch_themes(self):
+        if self.cached_themes and self.cached_themes.get("themes"):
+            return self.cached_themes
+        
+        repos = self.config.get("ThemeRepository")
+        if not repos:
+            logging.error("ThemeRepository is not defined in config.json")
+            return {"themes": []}
+
+        if isinstance(repos, str):
+            repos = [repos]
+
+        aggregated_themes = {"themes": []}
+        for url in repos:
+            try:
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                if isinstance(data, dict) and "themes" in data:
+                    aggregated_themes["themes"].extend(data["themes"])
+            except Exception as e:
+                logging.error(f"Sync fetch_themes failed for {url}: {e}")
+        
+        self.cached_themes = aggregated_themes
+        return self.cached_themes
+
+    def _on_image_loaded(self, data):
+        pixmap = QPixmap()
+        pixmap.loadFromData(data)
+        if hasattr(self, 'image_label'):
+            # Scale pixmap to fit the label while keeping aspect ratio
+            scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.image_label.setPixmap(scaled_pixmap)
+
+    def _on_image_error(self, error_msg):
+        if hasattr(self, 'image_label'):
+            self.image_label.setText(f"Error loading image: {error_msg}")
+        logging.error(f"Failed to load preview image: {error_msg}")
+
+    def _on_theme_downloaded(self, theme_name):
+        self.load_themes()
+        if hasattr(self, 'download_button'):
+            self.download_button.setEnabled(True)
+            self.download_button.setText("Download Theme")
+        print(f"Downloaded {theme_name} theme.")
+
+    def _on_theme_download_error(self, error_msg):
+        if hasattr(self, 'download_button'):
+            self.download_button.setEnabled(True)
+            self.download_button.setText("Download Theme")
+        self.show_error_popup("Error downloading theme", f"An error occurred: {error_msg}")
+        logging.error(f"Failed to download theme: {error_msg}")
 
     def show_error_popup(self, title, message):
         msg = QMessageBox()
@@ -709,24 +918,21 @@ class zucaroVersionSelector(QWidget):
                 )
                 self.details_label.setTextFormat(Qt.RichText)
                 self.details_label.setOpenExternalLinks(True)
+                
                 preview = theme.get('preview')
                 if preview:
-                    image_data = self.fetch_image(preview)
-                    if image_data:
-                        pixmap = QPixmap()
-                        pixmap.loadFromData(image_data)
-                        self.image_label.setPixmap(pixmap)
-                    else:
-                        self.image_label.clear()
+                    # Cancel previous image fetch if it's still running
+                    if hasattr(self, 'image_worker') and self.image_worker.isRunning():
+                        self.image_worker.terminate()
+                        self.image_worker.wait()
 
-    def fetch_image(self, url):
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.RequestException as e:
-            self.show_error_popup("Error fetching image", f"An error occurred while fetching the image: {e}")
-            return None
+                    self.image_label.setText("Loading image...")
+                    self.image_worker = ImageWorker(preview)
+                    self.image_worker.finished.connect(self._on_image_loaded)
+                    self.image_worker.error.connect(self._on_image_error)
+                    self.image_worker.start()
+                else:
+                    self.image_label.clear()
 
     def find_theme_by_name(self, theme_name):
         themes_data = self.fetch_themes()
@@ -743,11 +949,71 @@ class zucaroVersionSelector(QWidget):
             theme = self.find_theme_by_name(theme_name)
             if theme:
                 theme_url = theme["link"]
-                self.download_theme_json(theme_url, theme_name)
-                self.load_themes()
+                if hasattr(self, 'download_button'):
+                    self.download_button.setEnabled(False)
+                    self.download_button.setText("Downloading...")
+                
+                self.download_worker = ThemeDownloadWorker(theme_url, theme_name)
+                self.download_worker.finished.connect(lambda: self._on_theme_downloaded(theme_name))
+                self.download_worker.error.connect(self._on_theme_download_error)
+                self.download_worker.start()
 
-        ## REPOSITORY BLOCK ENDS
+    def validate_and_save_shortcuts(
+        self,
+        dialog,
+        editors,
+        is_rcp_enabled,
+        check_updates_on_start,
+        theme_background,
+        selected_theme,
+        java_path,
+        ram_allocation,
+        manage_java_enabled
+    ):
+        new_shortcuts = {}
+        sequences_seen = set()
+        duplicates = []
+        
+        for name, editor in editors.items():
+            seq_text = editor.keySequence().toString()
+            if not seq_text:
+                continue
+            
+            # Allow overlap between Settings and SaveSettings
+            is_settings_overlap = (name in ["Settings", "SaveSettings"])
+            
+            if seq_text in sequences_seen:
+                # Check if the existing sequence was also a settings overlap
+                already_has_non_settings_overlap = False
+                for prev_name, prev_seq in new_shortcuts.items():
+                    if prev_seq == seq_text and prev_name not in ["Settings", "SaveSettings"]:
+                        already_has_non_settings_overlap = True
+                        break
+                
+                if not is_settings_overlap or already_has_non_settings_overlap:
+                    duplicates.append(name)
+            
+            sequences_seen.add(seq_text)
+            new_shortcuts[name] = seq_text
+            
+        if duplicates:
+            QMessageBox.warning(
+                dialog,
+                "Duplicate Shortcuts",
+                f"The following shortcuts are duplicated: {', '.join(duplicates)}\nPlease ensure all shortcuts are unique."
+            )
+            return
 
+        self.save_settings(
+            is_rcp_enabled,
+            check_updates_on_start,
+            theme_background,
+            selected_theme,
+            java_path,
+            ram_allocation,
+            manage_java_enabled,
+            new_shortcuts
+        )
 
     def save_settings(
         self,
@@ -757,9 +1023,16 @@ class zucaroVersionSelector(QWidget):
         selected_theme,
         java_path,
         ram_allocation,
-        manage_java_enabled
+        manage_java_enabled,
+        new_shortcuts=None
     ):
         config_path = "config.json"
+        
+        # Capture old settings to see what changed
+        old_theme = self.config.get("Theme")
+        old_background = self.config.get("ThemeBackground")
+        old_rcp = self.config.get("IsRCPenabled")
+
         updated_config = {
             "IsRCPenabled": is_rcp_enabled,
             "CheckUpdate": check_updates_on_start,
@@ -769,18 +1042,47 @@ class zucaroVersionSelector(QWidget):
             "MaxRAM": ram_allocation,
             "JavaPath": java_path,
         }
+        
+        if new_shortcuts:
+            updated_config["KeyboardShortcuts"] = new_shortcuts
 
+        self.sync_config()
         self.config.update(updated_config)
 
-        with open(config_path, "w") as config_file:
-            json.dump(self.config, config_file, indent=4)
+        try:
+            with open(config_path, "w") as config_file:
+                json.dump(self.config, config_file, indent=4)
+            
+            # Apply changes live
+            if selected_theme != old_theme or theme_background != old_background:
+                theme_file_path = os.path.join("themes", selected_theme)
+                self.load_theme_from_file(theme_file_path)
+                self.refresh_styles()
+            
+            # Re-setup shortcuts if they were updated
+            if new_shortcuts:
+                self.setup_shortcuts()
+            
+            if is_rcp_enabled != old_rcp:
+                if is_rcp_enabled:
+                    self.start_discord_rcp_thread()
+                else:
+                    pass
 
-        QMessageBox.information(
-            self, 
-            "Settings Saved", 
-            "Settings saved successfully!\n\nTo apply the changes, please restart the launcher."
-        )
-        self.__init__()
+            QMessageBox.information(
+                self, 
+                "Settings Saved", 
+                "Settings saved successfully!"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+
+    def start_discord_rcp_thread(self):
+        if self.config.get("IsRCPenabled", False):
+            discord_rcp_thread = Thread(target=self.start_discord_rcp)
+            discord_rcp_thread.daemon = True
+            discord_rcp_thread.start()
+            print("Discord RPC thread started.")
 
     def get_system_info(self):
         # Get system information
@@ -863,7 +1165,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -889,7 +1191,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -900,7 +1202,7 @@ class zucaroVersionSelector(QWidget):
             if not output:
                 self.installed_version_combo.clear()
                 return
-        except Exception as e:
+        except Exception:
             self.installed_version_combo.clear()
             return
 
@@ -990,15 +1292,32 @@ class zucaroVersionSelector(QWidget):
             self.current_state = "menu"
             self.update_total_playtime(self.start_time)
 
+    def sync_config(self):
+        """Reloads config from disk and merges with current memory state to avoid data loss."""
+        config_path = "config.json"
+        if not os.path.exists(config_path):
+            return
+
+        try:
+            with open(config_path, "r") as f:
+                disk_config = json.load(f)
+
+            disk_config.update(self.config)
+            self.config = disk_config
+        except Exception as e:
+            print(f"Warning: Failed to sync config from disk: {e}")
+
     def update_last_played(self, selected_instance):
+        self.sync_config()
         config_path = "config.json"
         self.config["LastPlayed"] = selected_instance
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
 
     def update_total_playtime(self, start_time):
+        self.sync_config()
         config_path = "config.json"
-        self.config["TotalPlaytime"] += time.time() - self.start_time
+        self.config["TotalPlaytime"] += (time.time() - start_time)
         print("TOTAL PLAYTIME:" + str(self.config["TotalPlaytime"]))
         with open(config_path, "w") as config_file:
             json.dump(self.config, config_file, indent=4)
@@ -1016,7 +1335,7 @@ class zucaroVersionSelector(QWidget):
         # Title
         title_label = QLabel('Manage Accounts')
         title_label.setFont(QFont("Arial", 14))
-        title_label.setAlignment(Qt.AlignCenter)  # Center the text
+        title_label.setAlignment(Qt.AlignCenter)
         # Dropdown for selecting accounts
         account_combo = QComboBox()
         self.populate_accounts(account_combo)
@@ -1033,10 +1352,9 @@ class zucaroVersionSelector(QWidget):
 
         # New button to set the account idk
         set_default_button = QPushButton('Select')
-        set_default_button.setFixedWidth(100)  # Set button width to a quarter
+        set_default_button.setFixedWidth(100)
         set_default_button.clicked.connect(lambda: self.set_default_account(account_combo.currentText(), dialog))
 
-        # Layout for account selection (dropdown and set default button)
         account_layout = QHBoxLayout()
         account_layout.addWidget(account_combo)
         account_layout.addWidget(set_default_button)
@@ -1283,45 +1601,36 @@ class zucaroVersionSelector(QWidget):
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
-                local_version = local_version_info.get("version")
-                if local_version:
-                    remote_version_info = self.fetch_remote_version()
-                    remote_version = remote_version_info.get("version")
-                    logging.info(f"Remote version: {remote_version}")
-
-                    if remote_version and (remote_version != local_version):
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                        if update_dialog == QMessageBox.Yes:
-                            # Download and apply the update
-                            self.download_update(remote_version_info)
-                    else:
-                        print(f"You already have the latest version!")
+                self.local_version = local_version_info.get("version")
+                if self.local_version:
+                    self.update_worker = UpdateWorker()
+                    self.update_worker.finished.connect(self._on_update_check_start_finished)
+                    self.update_worker.start()
                 else:
                     logging.error("Failed to read local version information.")
-                    QMessageBox.critical(self, "Error", "Failed to check for updates.")
         except Exception as e:
-            logging.error("Error checking for updates: %s", str(e))
-            QMessageBox.critical(self, "Error", "Failed to check for updates.")
+            logging.error("Error initiating update check: %s", str(e))
+
+    def _on_update_check_start_finished(self, remote_version_info):
+        remote_version = remote_version_info.get("version")
+        if remote_version and (remote_version != self.local_version):
+            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+            update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if update_dialog == QMessageBox.Yes:
+                self.download_update(remote_version_info)
+        else:
+            print("You already have the latest version!")
 
     def check_for_update(self):
         try:
             with open("version.json") as f:
                 local_version_info = json.load(f)
-                local_version = local_version_info.get("version")
-                if local_version:
-                    remote_version_info = self.fetch_remote_version()
-                    remote_version = remote_version_info.get("version")
-                    logging.info(f"Remote version: {remote_version}")
-
-                    if remote_version and (remote_version != local_version):
-                        update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
-                        update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                        if update_dialog == QMessageBox.Yes:
-                            # Download and apply the update
-                            self.download_update(remote_version_info)
-                    else:
-                        QMessageBox.information(self, "Up to Date", "You already have the latest version!")
+                self.local_version = local_version_info.get("version")
+                if self.local_version:
+                    self.update_worker_manual = UpdateWorker()
+                    self.update_worker_manual.finished.connect(self._on_update_check_manual_finished)
+                    self.update_worker_manual.error.connect(lambda err: QMessageBox.critical(self, "Error", f"Failed to check for updates: {err}"))
+                    self.update_worker_manual.start()
                 else:
                     logging.error("Failed to read local version information.")
                     QMessageBox.critical(self, "Error", "Failed to check for updates.")
@@ -1329,19 +1638,15 @@ class zucaroVersionSelector(QWidget):
             logging.error("Error checking for updates: %s", str(e))
             QMessageBox.critical(self, "Error", "Failed to check for updates.")
 
-    def fetch_remote_version(self):
-        try:
-            update_url = "https://raw.githubusercontent.com/nixietab/picodulce/main/version.json"
-            response = requests.get(update_url)
-            if response.status_code == 200:
-                remote_version_info = response.json()
-                return remote_version_info
-            else:
-                logging.error("Failed to fetch update information.")
-                return None
-        except Exception as e:
-            logging.error("Error fetching remote version: %s", str(e))
-            return None
+    def _on_update_check_manual_finished(self, remote_version_info):
+        remote_version = remote_version_info.get("version")
+        if remote_version and (remote_version != self.local_version):
+            update_message = f"A new version ({remote_version}) is available!\nDo you want to download it now?"
+            update_dialog = QMessageBox.question(self, "Update Available", update_message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if update_dialog == QMessageBox.Yes:
+                self.download_update(remote_version_info)
+        else:
+            QMessageBox.information(self, "Up to Date", "You already have the latest version!")
 
     def download_update(self, version_info):
         try:

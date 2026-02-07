@@ -6,7 +6,7 @@ import threading
 import requests
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QComboBox, QDialog, QTabWidget, QMainWindow, QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt, QSize, QObject, pyqtSignal
-from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap
 
 CONFIG_FILE = "config.json"
 

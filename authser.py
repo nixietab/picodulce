@@ -1,17 +1,14 @@
-import sys
 import json
-import os
 import uuid
 import asyncio
 import aiohttp
-from datetime import datetime, timezone
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QVBoxLayout, 
-                           QPushButton, QLineEdit, QMessageBox)
+                           QPushButton, QLineEdit)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QUrl, QObject
 from PyQt5.QtGui import QDesktopServices
 from zucaro.logging import logger
-from zucaro.launcher import get_default_root, Launcher
+from zucaro.launcher import Launcher
 
 # Constants for Microsoft Authentication
 URL_DEVICE_AUTH = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
