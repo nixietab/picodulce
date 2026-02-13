@@ -18,7 +18,7 @@ import loaddaemon
 
 from PyQt5.QtWidgets import QApplication, QComboBox, QWidget, QInputDialog, QVBoxLayout, QListWidget, QFileDialog, QPushButton, QMessageBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QTabWidget, QSpacerItem, QSizePolicy, QGridLayout, QTextEdit, QListWidgetItem, QMenu, QRadioButton, QProgressDialog, QShortcut, QKeySequenceEdit, QScrollArea
 from PyQt5.QtGui import QFont, QIcon, QColor, QPalette, QMovie, QPixmap, QDesktopServices, QKeySequence
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QUrl, QByteArray
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QUrl, QByteArray, QTimer, QEvent
 from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
@@ -132,6 +132,10 @@ class zucaroVersionSelector(QWidget):
         self.cached_themes = None
         self.is_fetching_themes = False
         self.fetch_themes_async()
+        
+        # Easter egg state
+        self.rainbow_timer = None
+        self.rainbow_hue = 0
 
 
     def load_theme_from_file(self, file_path, app=None):
@@ -354,14 +358,11 @@ class zucaroVersionSelector(QWidget):
         grid_layout.addWidget(self.settings_button, 0, 0)
         grid_layout.addWidget(self.about_button, 0, 1)
 
-        # Add the grid layout to buttons layout
         buttons_layout.addLayout(grid_layout)
 
-        # Set buttons layout alignment and spacing
         buttons_layout.setAlignment(Qt.AlignTop)
         buttons_layout.setSpacing(10)
 
-        # Set main layout
         main_layout = QVBoxLayout()
         main_layout.addWidget(title_label, alignment=Qt.AlignCenter)
         main_layout.addWidget(installed_versions_label)
@@ -376,28 +377,22 @@ class zucaroVersionSelector(QWidget):
         """Set up keyboard shortcuts for the main window."""
         shortcuts_config = self.config.get("KeyboardShortcuts", {})
         
-        # Screenshots folder
         QShortcut(QKeySequence(shortcuts_config.get("Screenshots", "Ctrl+A")), self, self.open_screenshots_folder)
         
-        # Play instance
         QShortcut(QKeySequence(shortcuts_config.get("Play", "Ctrl+P")), self, self.play_instance)
         
-        # Open dialogs
         QShortcut(QKeySequence(shortcuts_config.get("VersionManager", "Ctrl+M")), self, self.open_mod_loader_and_version_menu)
         QShortcut(QKeySequence(shortcuts_config.get("ModManager", "Ctrl+O")), self, self.open_marroc_script)
         QShortcut(QKeySequence(shortcuts_config.get("Settings", "Ctrl+S")), self, self.open_settings_dialog)
         QShortcut(QKeySequence(shortcuts_config.get("SettingsAlt", "Ctrl+,")), self, self.open_settings_dialog)
         QShortcut(QKeySequence(shortcuts_config.get("About", "Ctrl+I")), self, self.show_about_dialog)
         
-        # Refresh
         QShortcut(QKeySequence(shortcuts_config.get("Refresh", "Ctrl+R")), self, self.populate_installed_versions)
         QShortcut(QKeySequence(shortcuts_config.get("RefreshAlt", "F5")), self, self.populate_installed_versions)
         
-        # Quit
         QShortcut(QKeySequence(shortcuts_config.get("Quit", "Ctrl+Q")), self, self.close)
 
     def open_screenshots_folder(self):
-        """Open the screenshots folder for the selected instance."""
         try:
             instance_name = self.config.get("Instance", "default")
             
@@ -437,6 +432,30 @@ class zucaroVersionSelector(QWidget):
                 focus_widget.showPopup()
         else:
             super().keyPressEvent(event)
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QMessageBox) and event.type() == QEvent.MouseButtonDblClick:
+            if event.button() == Qt.LeftButton:
+                if event.x() < 100 and event.y() < 100:
+                    self.start_rainbow_effect()
+                    obj.accept()
+        return super().eventFilter(obj, event)
+
+    def start_rainbow_effect(self):
+        # Start the easter egg
+        if self.rainbow_timer:
+            self.rainbow_timer.stop()
+        
+        self.rainbow_timer = QTimer(self)
+        self.rainbow_timer.timeout.connect(self.update_rainbow_style)
+        self.rainbow_timer.start(50)  # Update every 50ms
+
+    def update_rainbow_style(self):
+        # Update the play button color with a rainbow effect
+        self.rainbow_hue = (self.rainbow_hue + 5) % 360
+        color = QColor.fromHsv(self.rainbow_hue, 200, 255)
+        self.play_button.setStyleSheet(f"background-color: {color.name()}; color: white; font-weight: bold;")
+
 
     def open_settings_dialog(self):
         dialog = QDialog(self)
@@ -1557,10 +1576,6 @@ class zucaroVersionSelector(QWidget):
         return(f"{total_playtime} {playtime_unit}")
         
     def show_about_dialog(self):
-        import json
-        from PyQt5.QtWidgets import QMessageBox
-        from PyQt5.QtCore import Qt
-
         try:
             with open('version.json', 'r') as version_file:
                 version_data = json.load(version_file)
@@ -1594,6 +1609,10 @@ class zucaroVersionSelector(QWidget):
         msg.setTextFormat(Qt.RichText)
         msg.setText(about_message)
         msg.setStandardButtons(QMessageBox.Ok)
+        
+        # Install event filter to detect double click on the icon
+        msg.installEventFilter(self)
+        
         msg.exec_()
 
 
