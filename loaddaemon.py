@@ -7,6 +7,11 @@ from io import StringIO
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def strip_ansi(text):
+    return ANSI_ESCAPE.sub('', text)
+
 
 class LaunchSignals(QObject):
     log_update = pyqtSignal(str)
@@ -31,22 +36,32 @@ class StreamingCapture(StringIO):
         if self.abort_requested:
             raise AbortException("Launch aborted by user")
 
-        if text and text.strip():
-            # Check if signal is still valid before emitting
-            try:
-                self.log_signal.emit(text.strip())
-            except RuntimeError:
-                # Signal/Object might be deleted
-                pass
+        if text:
+            # Strip ANSI escape codes (common in unix terminals for colors/progress)
+            text = strip_ansi(text)
             
-            if not self.launch_detected and self.launch_signal:
-                lower_text = text.lower()
-                if "launching" in lower_text and ("game" in lower_text or "version" in lower_text or "minecraft" in lower_text):
-                    self.launch_detected = True
-                    try:
-                        self.launch_signal.emit()
-                    except RuntimeError:
-                        pass
+            # Handle carriage returns by taking the last part of a line if it contains \r
+            # This should not be necesary in any case, but ill implement it just in case
+            if '\r' in text:
+                parts = text.split('\r')
+                text = parts[-1]
+
+            if text.strip():
+                # Check if signal is still valid before emitting
+                try:
+                    self.log_signal.emit(text.strip())
+                except RuntimeError:
+                    # Signal/Object might be deleted
+                    pass
+                
+                if not self.launch_detected and self.launch_signal:
+                    lower_text = text.lower()
+                    if "launching" in lower_text and ("game" in lower_text or "version" in lower_text or "minecraft" in lower_text):
+                        self.launch_detected = True
+                        try:
+                            self.launch_signal.emit()
+                        except RuntimeError:
+                            pass
         
         return super().write(text)
 
