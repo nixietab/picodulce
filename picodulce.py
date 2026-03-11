@@ -306,8 +306,6 @@ class zucaroVersionSelector(QWidget):
 
         # Set application style and theme
         QApplication.setStyle("Fusion")
-        with open("config.json", "r") as config_file:
-            json.load(config_file)
 
         # Load theme background
         self.load_theme_background()
@@ -546,27 +544,39 @@ class zucaroVersionSelector(QWidget):
         java_layout.addLayout(java_path_layout)
         
         # RAM Section
-        ram_label = QLabel("Allocated RAM (e.g. 2G, 4G, 8G):")
+        ram_label = QLabel("Allocated RAM (e.g. 1024M, 2G, 4G):")
         ram_selector = QLineEdit()
         ram_selector.setPlaceholderText("2G")
         
         # Set initial value from config
         initial_ram = self.config.get("MaxRAM", "2G")
-        if not initial_ram.endswith('G'):
-            initial_ram += 'G'
-        ram_selector.setText(initial_ram)
+        ram_selector.setText(str(initial_ram))
         
-        def ensure_g_suffix():
+        def normalize_ram_input():
             current_text = ram_selector.text().strip().upper()
             if not current_text:
                 ram_selector.setText("2G")
                 return
+            
+            # Extract digits and alpha part
             digits = "".join(filter(str.isdigit, current_text))
+            suffix = "".join(filter(str.isalpha, current_text))
+            
             if not digits:
                 digits = "2"
-            ram_selector.setText(f"{digits}G")
+            
+            if not suffix:
+                suffix = "G"
+            elif suffix in ["M", "MB"]:
+                suffix = "M" # Backend typically prefers M
+            elif suffix in ["G", "GB"]:
+                suffix = "G"
+            else:
+                suffix = "G" # Default to G for unknown
+                
+            ram_selector.setText(f"{digits}{suffix}")
         
-        ram_selector.editingFinished.connect(ensure_g_suffix)
+        ram_selector.editingFinished.connect(normalize_ram_input)
         
         java_layout.addWidget(ram_label)
         java_layout.addWidget(ram_selector)
@@ -1435,6 +1445,7 @@ class zucaroVersionSelector(QWidget):
                 command += " --ms"
 
             modulecli.run_command(command)
+            # Re-fetch local cache of accounts if needed, but modulecli doesn't return list here
             QMessageBox.information(dialog, "Success", f"Account '{username}' created successfully!")
             self.populate_accounts_for_all_dialogs()
             dialog.accept()
@@ -1618,15 +1629,20 @@ class zucaroVersionSelector(QWidget):
 
     def check_for_update_start(self):
         try:
-            with open("version.json") as f:
-                local_version_info = json.load(f)
-                self.local_version = local_version_info.get("version")
-                if self.local_version:
-                    self.update_worker = UpdateWorker()
-                    self.update_worker.finished.connect(self._on_update_check_start_finished)
-                    self.update_worker.start()
-                else:
-                    logging.error("Failed to read local version information.")
+            if hasattr(self, 'local_version') and self.local_version:
+                version = self.local_version
+            else:
+                with open("version.json") as f:
+                    local_version_info = json.load(f)
+                    version = local_version_info.get("version")
+                    self.local_version = version
+
+            if version:
+                self.update_worker = UpdateWorker()
+                self.update_worker.finished.connect(self._on_update_check_start_finished)
+                self.update_worker.start()
+            else:
+                logging.error("Failed to read local version information.")
         except Exception as e:
             logging.error("Error initiating update check: %s", str(e))
 
@@ -1914,7 +1930,7 @@ class ModLoaderAndVersionMenu(QDialog):
         ) if self.instances_list_widget.currentItem() else None)
         
         QShortcut(QKeySequence("Delete"), instances_tab, lambda: self.delete_instance(
-            self.instances_list_widget.currentItem().text().replace("★ ", "").strip() if self.instances_list_widget.currentItem() else ""
+            self.instances_list_widget.currentItem().text().strip() if self.instances_list_widget.currentItem() else ""
         ) if self.instances_list_widget.currentItem() else None)
 
         self.load_instances()
@@ -2012,17 +2028,14 @@ class ModLoaderAndVersionMenu(QDialog):
             
             for instance in instances:
                 instance_name = instance.strip()
-                item = QListWidgetItem()
+                item = QListWidgetItem(instance_name)
                 font = QFont()
                 font.setPointSize(11)
-                
-                if instance_name == current_instance:
-                    item.setText(f"★ {instance_name}")
-                else:
-                    item.setText(instance_name)
-                
                 item.setFont(font)
                 self.instances_list_widget.addItem(item)
+                
+                if instance_name == current_instance:
+                    self.instances_list_widget.setCurrentItem(item)
 
         except Exception as e:
             logging.error("Error fetching instances: %s", str(e))
@@ -2032,7 +2045,7 @@ class ModLoaderAndVersionMenu(QDialog):
         if not item:
             return
         
-        instance_name = item.text().replace("★ ", "").strip()
+        instance_name = item.text().strip()
         
         menu = QMenu()
         
@@ -2064,7 +2077,7 @@ class ModLoaderAndVersionMenu(QDialog):
             self.rename_instance(old_instance_name, new_instance_name)
 
     def on_instance_selected(self, item):
-        instance_name = item.text().replace("★ ", "").strip()
+        instance_name = item.text().strip()
 
         config_file = 'config.json'
 
