@@ -3,6 +3,7 @@ import threading
 import shlex
 import gc
 import re
+import time
 from io import StringIO
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
@@ -18,6 +19,7 @@ class LaunchSignals(QObject):
     launch_complete = pyqtSignal()
     launch_aborted = pyqtSignal()
     cleanup_done = pyqtSignal()
+    progress_update = pyqtSignal(int, int, str)
 
 
 class AbortException(Exception):
@@ -100,18 +102,45 @@ class LaunchWindow(QDialog):
         self.signals.launch_complete.connect(self.on_launch_complete)
         self.signals.launch_aborted.connect(self.on_launch_aborted)
         self.signals.cleanup_done.connect(self.on_cleanup_done)
+        self.signals.progress_update.connect(self.on_progress_update)
         
         self.launch_detected = False
         self.closing_scheduled = False
         self.aborting = False
         self.capture_streams = []
         self.thread_running = False
+        self._speed_last_time = 0.0
+        self._speed_last_current = 0
     
     def update_status(self, text):
         if len(text) > 100:
             text = text[:97] + "..."
         self.status_label.setText(text)
-    
+
+    def on_progress_update(self, current, total, description):
+        if self.progress_bar.maximum() != total:
+            self.progress_bar.setRange(0, total)
+            self.progress_bar.setTextVisible(total > 0)
+            self._speed_last_time = time.monotonic()
+            self._speed_last_current = 0
+        self.progress_bar.setValue(current)
+
+        speed_str = ""
+        now = time.monotonic()
+        dt = now - self._speed_last_time
+        if dt >= 0.5:
+            dc = current - self._speed_last_current
+            items_per_sec = dc / dt if dt > 0 else 0
+            if items_per_sec >= 1:
+                speed_str = f" | {items_per_sec:.1f} items/s"
+            self._speed_last_time = now
+            self._speed_last_current = current
+
+        percent = (current / total * 100) if total > 0 else 0
+        self.progress_bar.setFormat(f"{percent:.0f}%{speed_str}")
+        if description:
+            self.status_label.setText(f"{description} ({current}/{total})")
+
     def on_launch_complete(self):
         if not self.closing_scheduled and not self.aborting:
             self.closing_scheduled = True
@@ -166,7 +195,8 @@ class LaunchWindow(QDialog):
             gc.collect()
 
             from zucaro.cli.main import zucaro_cli
-            
+            from zucaro.downloader import set_progress_callback
+
             old_stdout, old_stderr = sys.stdout, sys.stderr
             
             stdout_capture = StreamingCapture(self.signals.log_update, self.signals.launch_complete)
@@ -177,6 +207,7 @@ class LaunchWindow(QDialog):
             sys.stdout = stdout_capture
             sys.stderr = stderr_capture
             
+            set_progress_callback(lambda c, t, d: self.signals.progress_update.emit(c, t, d))
             try:
                 zucaro_cli.main(args=shlex.split(command), standalone_mode=False)
             except AbortException:
@@ -186,6 +217,7 @@ class LaunchWindow(QDialog):
             except Exception as e:
                 self.signals.log_update.emit(f"Error: {str(e)}")
             finally:
+                set_progress_callback(None)
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
                 
@@ -241,11 +273,14 @@ class PrepareWindow(QDialog):
         self.signals.launch_complete.connect(self.on_prepare_complete)
         self.signals.launch_aborted.connect(self.on_prepare_aborted)
         self.signals.cleanup_done.connect(self.on_cleanup_done)
+        self.signals.progress_update.connect(self.on_progress_update)
         
         self.aborting = False
         self.capture_streams = []
         self.thread_running = False
         self.success = False
+        self._speed_last_time = 0.0
+        self._speed_last_current = 0
 
     def update_status(self, text):
         # Parse output for progress updates
@@ -270,6 +305,30 @@ class PrepareWindow(QDialog):
             if len(text) > 100:
                 text = text[:97] + "..."
             self.status_label.setText(text)
+
+    def on_progress_update(self, current, total, description):
+        if self.progress_bar.maximum() != total:
+            self.progress_bar.setRange(0, total)
+            self.progress_bar.setTextVisible(total > 0)
+            self._speed_last_time = time.monotonic()
+            self._speed_last_current = 0
+        self.progress_bar.setValue(current)
+
+        speed_str = ""
+        now = time.monotonic()
+        dt = now - self._speed_last_time
+        if dt >= 0.5:
+            dc = current - self._speed_last_current
+            items_per_sec = dc / dt if dt > 0 else 0
+            if items_per_sec >= 1:
+                speed_str = f" | {items_per_sec:.1f} items/s"
+            self._speed_last_time = now
+            self._speed_last_current = current
+
+        percent = (current / total * 100) if total > 0 else 0
+        self.progress_bar.setFormat(f"{percent:.0f}%{speed_str}")
+        if description:
+            self.status_label.setText(f"{description} ({current}/{total})")
 
     def on_prepare_complete(self):
         if not self.aborting:
@@ -326,7 +385,8 @@ class PrepareWindow(QDialog):
             gc.collect()
 
             from zucaro.cli.main import zucaro_cli
-            
+            from zucaro.downloader import set_progress_callback
+
             old_stdout, old_stderr = sys.stdout, sys.stderr
             
             stdout_capture = StreamingCapture(self.signals.log_update, None)
@@ -337,6 +397,7 @@ class PrepareWindow(QDialog):
             sys.stdout = stdout_capture
             sys.stderr = stderr_capture
             
+            set_progress_callback(lambda c, t, d: self.signals.progress_update.emit(c, t, d))
             try:
                 zucaro_cli.main(args=shlex.split(command), standalone_mode=False)
             except AbortException:
@@ -346,6 +407,7 @@ class PrepareWindow(QDialog):
             except Exception as e:
                 self.signals.log_update.emit(f"Error: {str(e)}")
             finally:
+                set_progress_callback(None)
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
                 
