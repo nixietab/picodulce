@@ -1288,9 +1288,10 @@ class zucaroVersionSelector(QWidget):
 
 
     def launch_game_with_window(self, selected_instance):
+        start_time = time.time()
         try:
             self.current_state = selected_instance
-            self.start_time = time.time()
+            self.start_time = start_time
 
             with open('config.json', 'r') as config_file:
                 config = json.load(config_file)
@@ -1310,7 +1311,11 @@ class zucaroVersionSelector(QWidget):
 
             print(f"Launching command: {command}")
             
-            loaddaemon.launch_instance_with_window(command, self)
+            self.launch_window = loaddaemon.launch_instance_with_window(
+                command,
+                self,
+                on_complete=lambda: self.update_total_playtime(start_time),
+            )
 
         except Exception as e:
             error_message = f"Error playing {selected_instance}: {e}"
@@ -1319,7 +1324,6 @@ class zucaroVersionSelector(QWidget):
             QMessageBox.critical(self, "Error", error_message)
         finally:
             self.current_state = "menu"
-            self.update_total_playtime(self.start_time)
 
     def sync_config(self):
         """Reloads config from disk and merges with current memory state to avoid data loss."""

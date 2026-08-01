@@ -429,8 +429,10 @@ class PrepareWindow(QDialog):
                 pass
 
 
-def launch_instance_with_window(command, parent=None):
+def launch_instance_with_window(command, parent=None, on_complete=None):
     window = LaunchWindow(parent)
+    if on_complete:
+        window.signals.cleanup_done.connect(on_complete)
     window.launch_game(command)
     window.exec_()
     return window
