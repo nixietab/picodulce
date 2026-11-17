@@ -23,6 +23,9 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s - %(message)s')
 
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+
 class UpdateWorker(QThread):
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
